@@ -1,0 +1,6 @@
+source/botConfig.json
+log/
+trashbox/
+dist/
+git-filter-repo
+**/scriptsConfig.json
