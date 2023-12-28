@@ -4,3 +4,5 @@ trashbox/
 dist/
 git-filter-repo
 **/scriptsConfig.json
+node_modules/
+dist - Copy/

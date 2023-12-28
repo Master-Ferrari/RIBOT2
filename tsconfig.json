@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",              // Версия ECMAScript, которую вы целевой (ES6)
+    "module": "CommonJS",          // Система модулей (например, CommonJS, ES6, None)
+    "outDir": "./dist",            // Директория, в которую компилированные файлы будут помещены
+    "rootDir": "./source",            // Директория исходных файлов TypeScript
+    "strict": true,                // Включает строгую типизацию
+    "esModuleInterop": true,        // Разрешает импорт CommonJS-модулей как ES6-модулей
+    "resolveJsonModule": true    // Включение опции resolveJsonModule
+
+  },
+  "include": [
+    "./source",
+    "./source/**/*.json"
+  ],
+  "exclude": [
+    "./node_modules"               // Пути, которые нужно исключить из компиляции
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "dis7",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "ribot": "npx rimraf ./dist && npx tsc && node dist/motherscript.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Master-Ferrari/RIBOT2.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Master-Ferrari/RIBOT2/issues"
+  },
+  "homepage": "https://github.com/Master-Ferrari/RIBOT2#readme",
+  "devDependencies": {
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1"
+  }
+}
