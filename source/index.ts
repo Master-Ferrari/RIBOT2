@@ -1,12 +1,14 @@
 import { Client, GatewayIntentBits, Partials, Events, Collection, SlashCommandBuilder, CommandInteraction } from 'discord.js';
-import { print, printD, printL, format, dateToStr } from './lib/consoleUtils';
-import { ribotToken, clientId } from './botConfig.json';
 import * as path from 'path';
 import * as fs from 'fs';
-
 import { Routes } from 'discord-api-types/v9';
 import { getDirectories } from './lib/fsUtils';
 import { REST } from '@discordjs/rest';
+
+import { print, printD, printL, format, dateToStr } from './lib/consoleUtils';
+import { fetchMessage } from './lib/discordUtils';
+import { ribotToken, clientId } from './botConfig.json';
+import Database from './lib/sqlite';
 
 const deployPath = path.join(__dirname, './deploy');
 const scriptsPath = path.join(__dirname, './scripts');
@@ -33,7 +35,7 @@ client.once(Events.ClientReady, async () => {
 
 
     const scriptsData = await loadScriptsFromDirectories(scriptsPath, client);
-    // printD(scriptsData.scriptsList);
+    // printD(scriptsData.scriptsList); 
 
     if (process.argv.includes('update')) {
         await deployCommands(scriptsData.serverScripts, client);
@@ -42,6 +44,8 @@ client.once(Events.ClientReady, async () => {
     await subscribeToInteractions(client, scriptsData.scriptsList);
 
     await printL(format(`Ready!`, { foreground: 'white', background: 'red', bold: true, italic: true }));
+
+    updateAnswer(client);
 
 });
 // #endregion
@@ -66,12 +70,8 @@ type ScriptConfig = {
     execute(interaction: CommandInteraction, client: Client): Promise<void>;
 };
 
-type ScriptData = {
-    name: string, data: SlashCommandBuilder;
-};
-
 // type ServerScripts = Record<string, string[]>;
-type ServerScripts = Record<string, Array<ScriptData>>;
+type ServerScripts = Record<string, Array<ScriptConfig>>;
 
 async function loadScriptsFromDirectories(directoryPath: string, client: Client):
     Promise<{ serverScripts: ServerScripts, scriptsList: ScriptConfig[] }> {
@@ -109,9 +109,16 @@ async function loadScriptsFromDirectories(directoryPath: string, client: Client)
 
                     const commandScript = require(fullPath);
 
-                    const scriptData: ScriptData = {
-                        name: commandScript.command.data.name,
-                        data: commandScript.command.data
+                    const scriptData: ScriptConfig = {
+                        info: {
+                            comandName: commandScript.command.data.name,
+                            ...commandScript.command.info,
+                            serverName: guild.name,
+                            serverId: serverId,
+                            folder: subdir
+                        },
+                        data: commandScript.command.data,
+                        execute: commandScript.command.execute
                     };
 
 
@@ -122,17 +129,7 @@ async function loadScriptsFromDirectories(directoryPath: string, client: Client)
                         print(format(`${relativePath} already exists in ${serverId}`, { foreground: 'red', bold: true }));
                     }
 
-                    scriptsList.push({
-                        info: {
-                            comandName: commandScript.command.data.name,
-                            ...commandScript.command.info,
-                            serverName: guild.name,
-                            serverId: serverId,
-                            folder: subdir
-                        },
-                        data: commandScript.command.data,
-                        execute: commandScript.command.execute
-                    });
+                    scriptsList.push(scriptData);
 
 
                 });
@@ -149,9 +146,6 @@ async function loadScriptsFromDirectories(directoryPath: string, client: Client)
 async function fetchGuild(client: Client, guildId: string): Promise<any> {
 
     const guild = await client.guilds.cache.get(guildId);
-    if (!guild) {
-        print(format(`Guild ${guildId} not found`, { foreground: 'red', bold: true }));
-    }
     return guild;
 
 }
@@ -160,30 +154,49 @@ async function deployCommands(ServerScripts: ServerScripts, client: Client) {
 
     await printL(format("Deploying commands", { foreground: 'white', background: 'blue', bold: true, italic: true }));
 
+    // printD({ServerScripts});
+
     for (const [guildId, commandsData] of Object.entries(ServerScripts)) {
+
         const commands: SlashCommandBuilder[] = [];
 
         const guild = await fetchGuild(client, guildId);
 
+
         if (!guild) {
-            print(format(`Guild ${guildId} not found`, { foreground: 'red', bold: true }));
+            await printL("    Server: " + format(`not found (id ${guildId})`, { foreground: 'red', bold: true }));
             continue;
         }
 
         await printL("    Server: " + format(guild.name, { foreground: 'yellow' }));
+
+        if (commandsData.length === 0) {
+            await printL('  Commands: ' + format(`no commands`, { foreground: 'red', bold: true }));
+            continue;
+        }
+
+
         let commandsNames: string[] = [];
         // await printL("  Commands: ", false);
         // let frst = true;
         for (const commandData of commandsData) {
             // const commandScript = require(path.join(directoryPath, file));
-            commandsNames.push("/" + commandData.name);
+
+            let cmdStr = "";
+            if (commandData.info.type === "slash") {
+                cmdStr = format("/" + commandData.info.comandName, { foreground: 'green', bold: true });
+            }
+            if (commandData.info.type === "context") {
+                cmdStr = format(commandData.info.comandName, { foreground: 'cyan', bold: true });
+            }
+            commandsNames.push(cmdStr);
             // await printL(format((frst ? "" : ", ") + "/" + commandScript.command.data.name, { foreground: 'green' }), false);
             commands.push(commandData.data);
             // frst = false;
         }
         // await printL("");
         const commandsString = commandsNames.join(", ");
-        await printL('  Commands: ' + format(commandsString, { foreground: 'green' }));
+        await printL('  Commands: ' + commandsNames);
 
 
         try {
@@ -235,6 +248,19 @@ async function subscribeToInteractions(client: Client, slashCommands: ScriptConf
 
 //#endregion
 
+
+async function updateAnswer(client: Client): Promise<void> {
+
+    Database.interact('database.db', async (db) => {
+        const rec = await db.getJSON('global', 'lastUpdateCommand');
+        if (!rec) return;
+        await db.deleteRecord('global', 'lastUpdateAnswer');
+        const message = await fetchMessage(rec.messageID, rec.channelID, rec.guildID, client);
+        if (!message) return;
+		await message.edit("Restarted!");
+    });
+
+}
 
 
 client.login(ribotToken);
