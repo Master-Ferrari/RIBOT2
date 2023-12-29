@@ -1,0 +1,6 @@
+{
+    "blacklist": {
+        "prey1": "userId-serverId",
+        "prey2": "userId-serverId"
+    }
+}
