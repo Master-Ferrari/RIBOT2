@@ -28,6 +28,7 @@ const client: Client = new Client({
 });
 
 //#region ON READY
+
 client.once(Events.ClientReady, async () => {
     await printL(format(`Logged`, { foreground: 'white', background: 'red', bold: true, italic: true })
         + ` as ${client.user?.tag}`
@@ -35,7 +36,6 @@ client.once(Events.ClientReady, async () => {
 
 
     const scriptsData = await loadScriptsFromDirectories(scriptsPath, client);
-    // printD(scriptsData.scriptsList); 
 
     if (process.argv.includes('update')) {
         await deployCommands(scriptsData.serverScripts, client);
@@ -48,6 +48,7 @@ client.once(Events.ClientReady, async () => {
     updateAnswer(client);
 
 });
+
 // #endregion
 
 //#region DEPLOY COMMANDS
@@ -70,7 +71,6 @@ type ScriptConfig = {
     execute(interaction: CommandInteraction, client: Client): Promise<void>;
 };
 
-// type ServerScripts = Record<string, string[]>;
 type ServerScripts = Record<string, Array<ScriptConfig>>;
 
 async function loadScriptsFromDirectories(directoryPath: string, client: Client):
@@ -154,8 +154,6 @@ async function deployCommands(ServerScripts: ServerScripts, client: Client) {
 
     await printL(format("Deploying commands", { foreground: 'white', background: 'blue', bold: true, italic: true }));
 
-    // printD({ServerScripts});
-
     for (const [guildId, commandsData] of Object.entries(ServerScripts)) {
 
         const commands: SlashCommandBuilder[] = [];
@@ -177,11 +175,8 @@ async function deployCommands(ServerScripts: ServerScripts, client: Client) {
 
 
         let commandsNames: string[] = [];
-        // await printL("  Commands: ", false);
-        // let frst = true;
+        
         for (const commandData of commandsData) {
-            // const commandScript = require(path.join(directoryPath, file));
-
             let cmdStr = "";
             if (commandData.info.type === "slash") {
                 cmdStr = format("/" + commandData.info.comandName, { foreground: 'green', bold: true });
@@ -190,13 +185,11 @@ async function deployCommands(ServerScripts: ServerScripts, client: Client) {
                 cmdStr = format(commandData.info.comandName, { foreground: 'cyan', bold: true });
             }
             commandsNames.push(cmdStr);
-            // await printL(format((frst ? "" : ", ") + "/" + commandScript.command.data.name, { foreground: 'green' }), false);
             commands.push(commandData.data);
-            // frst = false;
         }
-        // await printL("");
+
         const commandsString = commandsNames.join(", ");
-        await printL('  Commands: ' + commandsNames);
+        await printL('  Commands: ' + commandsString);
 
 
         try {
@@ -247,7 +240,6 @@ async function subscribeToInteractions(client: Client, slashCommands: ScriptConf
 }
 
 //#endregion
-
 
 async function updateAnswer(client: Client): Promise<void> {
 
