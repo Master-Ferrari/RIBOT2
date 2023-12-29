@@ -49,6 +49,19 @@ client.once(Events.ClientReady, async () => {
 
 });
 
+async function updateAnswer(client: Client): Promise<void> {
+
+    Database.interact('database.db', async (db) => {
+        const rec = await db.getJSON('global', 'lastUpdateCommand');
+        if (!rec) return;
+        await db.deleteRecord('global', 'lastUpdateAnswer');
+        const message = await fetchMessage(rec.messageID, rec.channelID, rec.guildID, client);
+        if (!message) return;
+		await message.edit("Restarted!");
+    });
+
+}
+
 // #endregion
 
 //#region DEPLOY COMMANDS
@@ -241,18 +254,6 @@ async function subscribeToInteractions(client: Client, slashCommands: ScriptConf
 
 //#endregion
 
-async function updateAnswer(client: Client): Promise<void> {
-
-    Database.interact('database.db', async (db) => {
-        const rec = await db.getJSON('global', 'lastUpdateCommand');
-        if (!rec) return;
-        await db.deleteRecord('global', 'lastUpdateAnswer');
-        const message = await fetchMessage(rec.messageID, rec.channelID, rec.guildID, client);
-        if (!message) return;
-		await message.edit("Restarted!");
-    });
-
-}
 
 
 client.login(ribotToken);
