@@ -82,28 +82,32 @@ function print(text: any = "", newLine: boolean = true): string {
     // if(newLine) {
     //     process.stdout.write('\n');
     // }
-    return text;
+    return text; 
 }
 
-function printD(obj: any, head: boolean = true): string {
-     
+interface PrintDOptions {
+    head?: boolean;
+    depth?: number;
+}
+function printD(obj: any, options: PrintDOptions = { head: true, depth: 0 }): string {
+
     function decorateLines(inputString: string) {
         const lines = inputString.split('\n');
         const decoratedLines = lines.map(line => "\x1b[48;5;235m" + line + "\x1b[0m");
         return decoratedLines.join('\n');
     }
 
-    if (head && obj && typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj).length === 1) {
+    if (options.head && obj && typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj).length === 1) {
         const firstKey = Object.keys(obj)[0];
         print(format(String(typeof obj[firstKey]) + ' ' + firstKey,
             { foreground: 'black', background: 'blue', bold: true, italic: false }));
 
-        let text = util.inspect(obj[firstKey], { depth: null, colors: true });
+        let text = util.inspect(obj[firstKey], { depth: options.depth === 0 ? null : options.depth, colors: true });
         return print(decorateLines(text));
     }
 
     // print(format(String(typeof obj), { foreground: 'black', background: 'white', bold: true, italic: true }));
-    let text = util.inspect(obj, { depth: null, colors: true });
+    let text = util.inspect(obj, { depth: options.depth === 0 ? null : options.depth, colors: true });
     return print(decorateLines(text));
 }
 
@@ -157,5 +161,8 @@ function dateToStr(date: Date, style: string = "ddmmyyyy"): string {
     return ''; // Добавьте возвращаемое значение по умолчанию на случай, если ни одно из условий не выполнено
 }
 
+function printE(error: any = ""): string {
+    return print(format(String(error), { foreground: 'red', bold: true }));
+}
 
-export { print, printD, printL, format, dateToStr };
+export { print, printD, printL, printE, format, dateToStr };

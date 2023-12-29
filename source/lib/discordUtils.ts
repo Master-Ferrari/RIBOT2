@@ -1,4 +1,4 @@
-import { Client, Message, TextChannel } from 'discord.js';
+import { Client, Message, TextChannel, Guild } from 'discord.js';
 
 /**
  * Finds a message in a specified channel.
@@ -64,4 +64,12 @@ async function fetchMessage(messageId: string, channelId: string, guildId: strin
     }
 }
 
-export { findMessage, fetchMessage };
+async function fetchGuild(client: Client, guildId: string): Promise<Guild | undefined> {
+
+    const guild = await client.guilds.cache.get(guildId);
+
+    return guild;
+
+}
+
+export { findMessage, fetchMessage, fetchGuild };
