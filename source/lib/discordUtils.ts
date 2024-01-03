@@ -1,18 +1,27 @@
-import { Client, Message, TextChannel, Guild } from 'discord.js';
+import { Client, Message, TextChannel, Guild, GuildBasedChannel, WebhookClient } from 'discord.js';
+import { print, printD, printE, printL, format, dateToStr } from '../lib/consoleUtils';
 
-/**
- * Finds a message in a specified channel.
- * 
- * @param channelId - The ID of the channel to search in.
- * @param userId - The ID of the user who sent the message.
- * @param content - The content of the message to find.
- * @param client - The Discord client instance.
- * @returns The found message, or null if not found.
- */
-async function findMessage(channelId: string, userId: string, content: string, client: Client): Promise<Message | null> {
+export type GuildSetting = {
+    guildName: string;
+    guildId: string;
+    botChannelId: string;
+    mainWebhookLink: string;
+};
+export function isGuildSetting(obj: any): obj is GuildSetting {
+    return (
+        obj &&
+        typeof obj === 'object' &&
+        typeof obj.guildName === 'string' &&
+        typeof obj.guildId === 'string' &&
+        typeof obj.botChannelId === 'string' &&
+        typeof obj.mainWebhookLink === 'string'
+    );
+}
+
+export async function findMessage(channelId: string, userId: string, content: string, client: Client): Promise<Message | null> {
     const channel = await client.channels.fetch(channelId);
     if (!channel || !(channel instanceof TextChannel)) {
-        console.error('Channel not found or is not a text channel.');
+        printE('Channel not found or is not a text channel.');
         return null;
     }
 
@@ -39,16 +48,8 @@ async function findMessage(channelId: string, userId: string, content: string, c
     return foundMessage;
 }
 
-/**
- * Fetches a message by its ID from a specified channel and guild.
- * 
- * @param messageId - The ID of the message to fetch.
- * @param channelId - The ID of the channel where the message is located.
- * @param guildId - The ID of the guild where the channel is located.
- * @param client - The Discord client instance.
- * @returns The message if found, otherwise null.
- */
-async function fetchMessage(messageId: string, channelId: string, guildId: string, client: Client): Promise<Message | null> {
+
+export async function fetchMessage(messageId: string, channelId: string, guildId: string, client: Client): Promise<Message | null> {
     try {
         const guild = await client.guilds.fetch(guildId);
         if (!guild) return null;
@@ -59,12 +60,13 @@ async function fetchMessage(messageId: string, channelId: string, guildId: strin
         const message = await (channel as any).messages.fetch(messageId);
         return message;
     } catch (error) {
-        console.error('Failed to fetch message:', error);
+        printE('Failed to fetch message:', error);
         return null;
     }
 }
 
-async function fetchGuild(client: Client, guildId: string): Promise<Guild | undefined> {
+
+export async function fetchGuild(client: Client, guildId: string): Promise<Guild | undefined> {
 
     const guild = await client.guilds.cache.get(guildId);
 
@@ -72,4 +74,88 @@ async function fetchGuild(client: Client, guildId: string): Promise<Guild | unde
 
 }
 
-export { findMessage, fetchMessage, fetchGuild };
+export async function fetchChannel(client: Client, guildId: string, channelId: string): Promise<GuildBasedChannel | undefined> {
+
+    const guild = await client.guilds.cache.get(guildId);
+
+    const channel = await guild?.channels.cache.get(channelId);
+
+    return channel as GuildBasedChannel | undefined;
+}
+
+export async function fetchLastNMessages(guildId: string, channelId: string, n: number, client: Client): Promise<Message[]> {
+    try {
+        const guild = await client.guilds.fetch(guildId);
+        if (!guild) throw new Error('Guild not found');
+
+        const channel = guild.channels.cache.get(channelId);
+        if (!channel || !(channel instanceof TextChannel)) throw new Error('Channel not found or is not a text channel');
+
+        const messages = await channel.messages.fetch({ limit: n });
+        return Array.from(messages.values());
+    } catch (error) {
+        printE('Failed to fetch messages:', error);
+        return [];
+    }
+}
+
+
+
+export type WebhookParams = {
+    client: Client;
+    webhookUrl: string;
+    content: string;
+    channelId: string;
+    guildId: string;
+    username: string;
+    avatarURL: string;
+};
+
+export async function sendWebhookMsg(params: WebhookParams) {
+
+    const { client, webhookUrl, content, channelId, guildId, username, avatarURL } = params;
+
+    // try {
+
+    // const webhook = webhookFromURL("https://discord.com/api/webhooks/1176534528441991322/ruFprC5MrWZAL_mqoJdSf85C617g1pPAGb4fzX8X_cuZlGp-roJGRw8zP76TDKGtP_LE");
+    const webhook = await new WebhookClient({ url: webhookUrl });
+
+    // printE(webhook.edit{});
+
+    const guild = await client.guilds.fetch(guildId);
+    if (!guild) throw new Error('Guild not found');
+
+    const channel: GuildBasedChannel | null = await guild.channels.fetch(channelId);
+    if (!channel || !channel.isTextBased) throw new Error('Channel not found or not a text channel');
+    
+    // const webhookId = webhookUrl.split('/').pop() || '';
+
+    const textChannel = channel as TextChannel;
+
+    await webhook.edit({
+        name: username,
+        avatar: avatarURL,
+        channel: '968834331852300288',
+        reason: 'a wot nado'
+    });
+
+    await webhook.send({
+        content: content,
+        username: username,
+        avatarURL: avatarURL,
+    });
+
+    function webhookFromURL(webhookUrl: string): WebhookClient {
+        const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
+
+        const webhookClient = new WebhookClient({ id, token });
+
+        return webhookClient;
+    }
+
+    // } catch (error) {
+    //     printE('Failed to send message:', error);
+    // }
+}
+
+
