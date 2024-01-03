@@ -82,7 +82,7 @@ function print(text: any = "", newLine: boolean = true): string {
     // if(newLine) {
     //     process.stdout.write('\n');
     // }
-    return text; 
+    return text;
 }
 
 interface PrintDOptions {
@@ -161,8 +161,8 @@ function dateToStr(date: Date, style: string = "ddmmyyyy"): string {
     return ''; // Добавьте возвращаемое значение по умолчанию на случай, если ни одно из условий не выполнено
 }
 
-function printE(error: any = ""): string {
-    return print(format(String(error), { foreground: 'red', bold: true }));
+function printE(msg: any = "", error: any = null): string {
+    return print(format(String(msg) + (error ? '\n' + String(error) : ' '), { foreground: 'red', bold: true }));
 }
 
 export { print, printD, printL, printE, format, dateToStr };
