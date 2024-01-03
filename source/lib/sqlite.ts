@@ -153,11 +153,12 @@ class Database {
         });
     }
 
-    static async interact(DBpath: string, callback: (db: Database) => Promise<void>): Promise<void> {
+    static async interact(DBpath: string, callback: (db: Database) => Promise<any>): Promise<any> {
         const db = new Database(DBpath);
         await db.init();
-        await callback(db);
+        const clbck = await callback(db);
         await db.close();
+        return clbck;
     }
     
 }

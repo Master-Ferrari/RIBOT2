@@ -45,7 +45,8 @@ client.once(Events.ClientReady, async () => {
 
     await launchStartupScripts(client, scriptsData.scriptsList);
 
-    await printL(format(`Ready!`, { foreground: 'white', background: 'red', bold: true, italic: true }));
+    await printL(format(`Ready!`, { foreground: 'white', background: 'red', bold: true, italic: true })
+        + " the final number of scripts: " + scriptsData.scriptsList.length);
 
     updateAnswer(client);
 
@@ -56,7 +57,7 @@ async function updateAnswer(client: Client): Promise<void> {
     Database.interact('database.db', async (db) => {
         const rec = await db.getJSON('global', 'lastUpdateCommand');
         if (!rec) return;
-        await db.deleteRecord('global', 'lastUpdateAnswer');
+        await db.deleteRecord('global', 'lastUpdateCommand');
         const message = await fetchMessage(rec.messageID, rec.channelID, rec.guildID, client);
         if (!message) return;
         await message.edit("Restarted!");
@@ -170,10 +171,16 @@ async function loadScriptsFromDirectories(directoryPath: string, client: Client)
         });
     }
 
-    // Linking teams to guilds
+    // Linking scripts to guilds
     for (const server of serverList) {
         for (const script of scriptsList) {
             if (script.guilds.find(guild => guild.info.serverId === server.info.serverId)) {
+
+                if (server.scripts.find(SCRIPT => SCRIPT.info.comandName === script.info.comandName)) {
+                    printE(`Script ${script.info.comandName} already exists in ${server.info.serverName}`);
+                    continue;
+                }
+
                 server.scripts.push(script);
             }
         }
