@@ -1,3 +1,5 @@
+import 'source-map-support/register';
+
 import { Client, GatewayIntentBits, Partials, Events, Collection, ContextMenuCommandBuilder, SlashCommandBuilder, CommandInteraction, Guild } from 'discord.js';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -18,6 +20,7 @@ const client: Client = new Client({
         GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildWebhooks,
         GatewayIntentBits.Guilds,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildScheduledEvents,
