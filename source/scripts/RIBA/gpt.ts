@@ -39,7 +39,7 @@ export const command = {
 
 
         const options: any = interaction.options;
-        const model = options.getString("model") ?? "gpt-3.5-turbo-1106";
+        const model = options.getString("model") ?? 'gpt-4-1106-preview';
         const visiondistance = options.getInteger("visiondistance") ?? 10;
 
         const gpt = new GPT(openaikey, 2000, model);
@@ -69,7 +69,7 @@ export const command = {
             role: "assistant",
 
             content: `Это запись чата. Ты дискорд бот. Твой ник - ${client.user?.username}.
-Форматирование для кода: \`\`\`[язык][код]\`\`\` .
+Для кода ВСЕГДА используется форматирование: \`\`\`[язык][код]\`\`\` .
 Отвечай на последние вопросы или сообщения.\n
 Отвечай в формате JSON {"ans": "твой ответ"}!!!
 Свой ник в ответе не пиши. Только текст ответа.
