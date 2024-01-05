@@ -6,8 +6,8 @@
     "rootDir": "./source",            // Директория исходных файлов TypeScript
     "strict": true,                // Включает строгую типизацию
     "esModuleInterop": true,        // Разрешает импорт CommonJS-модулей как ES6-модулей
-    "resolveJsonModule": true    // Включение опции resolveJsonModule
-
+    "resolveJsonModule": true,    // Включение опции resolveJsonModule
+    "sourceMap": true              // Включение опции sourceMap
   },
   "include": [
     "./source",
