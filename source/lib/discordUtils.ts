@@ -1,4 +1,4 @@
-import { Client, Message, TextChannel, Guild, GuildBasedChannel, WebhookClient } from 'discord.js';
+import { Client, Message, TextChannel, Guild, GuildBasedChannel, WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable } from 'discord.js';
 import { print, printD, printE, printL, format, dateToStr } from '../lib/consoleUtils';
 
 export type GuildSetting = {
@@ -6,7 +6,9 @@ export type GuildSetting = {
     guildId: string;
     botChannelId: string;
     mainWebhookLink: string;
+    eventschannelId: string;
 };
+
 export function isGuildSetting(obj: any): obj is GuildSetting {
     return (
         obj &&
@@ -14,7 +16,8 @@ export function isGuildSetting(obj: any): obj is GuildSetting {
         typeof obj.guildName === 'string' &&
         typeof obj.guildId === 'string' &&
         typeof obj.botChannelId === 'string' &&
-        typeof obj.mainWebhookLink === 'string'
+        typeof obj.mainWebhookLink === 'string' &&
+        typeof obj.eventschannelId === 'string'
     );
 }
 
@@ -100,62 +103,53 @@ export async function fetchLastNMessages(guildId: string, channelId: string, n: 
 }
 
 
-
 export type WebhookParams = {
     client: Client;
     webhookUrl: string;
     content: string;
-    channelId: string;
+    channelId?: string;
     guildId: string;
-    username: string;
-    avatarURL: string;
+    username?: string;
+    avatarURL?: string;
 };
 
 export async function sendWebhookMsg(params: WebhookParams) {
-
     const { client, webhookUrl, content, channelId, guildId, username, avatarURL } = params;
 
-    // try {
+    const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
 
-    // const webhook = webhookFromURL("https://discord.com/api/webhooks/1176534528441991322/ruFprC5MrWZAL_mqoJdSf85C617g1pPAGb4fzX8X_cuZlGp-roJGRw8zP76TDKGtP_LE");
-    const webhook = await new WebhookClient({ url: webhookUrl });
+    const webhook = await client.fetchWebhook(id, token);
 
-    // printE(webhook.edit{});
+    if (channelId && webhook.channelId !== channelId) {
+        await webhook.edit({ channel: channelId });
+    }
 
     const guild = await client.guilds.fetch(guildId);
     if (!guild) throw new Error('Guild not found');
 
-    const channel: GuildBasedChannel | null = await guild.channels.fetch(channelId);
-    if (!channel || !channel.isTextBased) throw new Error('Channel not found or not a text channel');
-    
-    // const webhookId = webhookUrl.split('/').pop() || '';
-
-    const textChannel = channel as TextChannel;
-
-    await webhook.edit({
-        name: username,
-        avatar: avatarURL,
-        channel: '968834331852300288',
-        reason: 'a wot nado'
-    });
-
     await webhook.send({
         content: content,
-        username: username,
-        avatarURL: avatarURL,
+        username: username || undefined,
+        avatarURL: avatarURL || undefined,
     });
-
-    function webhookFromURL(webhookUrl: string): WebhookClient {
-        const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
-
-        const webhookClient = new WebhookClient({ id, token });
-
-        return webhookClient;
-    }
-
-    // } catch (error) {
-    //     printE('Failed to send message:', error);
-    // }
 }
 
 
+
+
+export async function fetchEventById(client: Client, guildId: string, eventId: string): Promise<GuildScheduledEvent | null> {
+    try {
+        const guild = await client.guilds.fetch(guildId);
+        if (!guild) throw new Error('Guild not found');
+
+        const events = await guild.scheduledEvents.fetch();
+
+        const event = events.get(eventId);
+        if (!event) throw new Error('Event not found');
+
+        return event;
+    } catch (error) {
+        console.error('Error finding event by ID:', error);
+        return null;
+    }
+}

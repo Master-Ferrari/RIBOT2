@@ -1,13 +1,37 @@
 import axios from 'axios';
-import { printE } from './../lib/consoleUtils';
+import { printD, printE } from './../lib/consoleUtils';
 
+export const gptModels = ['gpt-3.5-turbo-1106', 'gpt-4-1106-preview'];
 type ModelVersions = 'gpt-3.5-turbo-1106' | 'gpt-4-1106-preview';
+
 
 type ImageContent = { image: string };
 type TextContent = string;
 type MessageContent = TextContent | ImageContent | (TextContent | ImageContent)[];
 type Message = { role: 'user' | 'assistant', content: MessageContent };
 type History = Message[];
+
+type ChatResponse = {
+    status: Number;
+    statusText: string,
+    data: {
+        choices: Array<{
+            index: number;
+            message: {
+                role: string;
+                content: string;
+            };
+            logprobs: null | any;
+            finish_reason: string;
+        }>;
+    }
+};
+
+type requestOptions = {
+    format: 'json_object' | 'text';
+    formatting: 'raw' | 'simplify';
+}
+
 
 class GPT {
     private apiKey: string;
@@ -23,25 +47,47 @@ class GPT {
         this.temperature = temperature;
     }
 
-    async request(history: History, response_format: 'json' | 'text' = 'text'): Promise<any> {
+    async request(history: History, requestOptions: requestOptions = { format: 'text', formatting: 'simplify' }): Promise<ChatResponse | string> {
+
+        let response: ChatResponse | string = '';
+
+        // printD({requestOptions});
+
         try {
             const payload = {
                 model: this.model,
                 messages: history,
                 max_tokens: this.tokens,
-                temperature: this.temperature
+                temperature: this.temperature,
+                response_format: { type: requestOptions.format },
             };
 
             const headers = { headers: { 'Authorization': `Bearer ${this.apiKey}` } };
 
-            const response = await axios.post(this.apiEndpoints, payload, headers);
+            response = await axios.post(this.apiEndpoints, payload, headers) as ChatResponse;
 
-            return response_format === 'json' ? response.data : response.data.choices[0].message.content;
+            // printD({ response }, { depth: 6 });
+
+            // response = requestOptions.format === 'json' ? response : response.data.choices[0].message.content;
+
+            if (requestOptions.formatting === 'simplify') {
+                if (requestOptions.format === 'json_object') {
+                    response = JSON.parse(response.data.choices[0].message.content);
+                }
+                else {
+                    response = response.data.choices[0].message.content;
+                }
+            }
+
+
         } catch (error) {
             printE(error);
-            return String(error);
+            response = String(error);
+            if (response.includes("403")) response += "\nвпн включить забыл наверно";
         }
+
+        return response;
     }
 }
 
-export { GPT, History, Message };
+export { GPT, History, Message, ChatResponse };
