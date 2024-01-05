@@ -1,4 +1,4 @@
-import { Client, Message, TextChannel, Guild, GuildBasedChannel, WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable } from 'discord.js';
+import { Client, Message, TextChannel, Guild, GuildBasedChannel, WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable, EmbedBuilder } from 'discord.js';
 import { print, printD, printE, printL, format, dateToStr } from '../lib/consoleUtils';
 
 export type GuildSetting = {
@@ -51,23 +51,18 @@ export async function findMessage(channelId: string, userId: string, content: st
     return foundMessage;
 }
 
-
 export async function fetchMessage(messageId: string, channelId: string, guildId: string, client: Client): Promise<Message | null> {
     try {
         const guild = await client.guilds.fetch(guildId);
-        if (!guild) return null;
-
-        const channel = guild.channels.cache.get(channelId);
-        // if (!channel || !channel.isText()) return null;
-
-        const message = await (channel as any).messages.fetch(messageId);
+        const channel = await guild.channels.cache.get(channelId) as TextChannel;
+        const message = await channel.messages.fetch(messageId);
+        if (!(message instanceof Message)) return null;
         return message;
     } catch (error) {
         printE('Failed to fetch message:', error);
         return null;
     }
 }
-
 
 export async function fetchGuild(client: Client, guildId: string): Promise<Guild | undefined> {
 
@@ -103,18 +98,19 @@ export async function fetchLastNMessages(guildId: string, channelId: string, n: 
 }
 
 
-export type WebhookParams = {
-    client: Client;
-    webhookUrl: string;
-    content: string;
-    channelId?: string;
+export type WebhookSend = {
+    content: string | undefined;
+    embeds?: Array<EmbedBuilder> | undefined;
+    channelId: string;
     guildId: string;
+    webhookUrl: string;
     username?: string;
     avatarURL?: string;
+    client: Client;
 };
 
-export async function sendWebhookMsg(params: WebhookParams) {
-    const { client, webhookUrl, content, channelId, guildId, username, avatarURL } = params;
+export async function sendWebhookMsg(params: WebhookSend): Promise<Message> {
+    const { client, webhookUrl, content, embeds, channelId, guildId, username, avatarURL } = params;
 
     const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
 
@@ -127,13 +123,37 @@ export async function sendWebhookMsg(params: WebhookParams) {
     const guild = await client.guilds.fetch(guildId);
     if (!guild) throw new Error('Guild not found');
 
-    await webhook.send({
+    const msg = await webhook.send({
         content: content,
+        embeds: embeds,
         username: username || undefined,
         avatarURL: avatarURL || undefined,
     });
+
+    return msg;
 }
 
+export async function editWebhookMsg(messageId: string, params: WebhookSend): Promise<Message> {
+    const { client, webhookUrl, content, embeds, channelId, guildId, username, avatarURL } = params;
+
+    const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
+
+    const webhook = await client.fetchWebhook(id, token);
+
+    if (channelId && webhook.channelId !== channelId) {
+        await webhook.edit({ channel: channelId });
+    }
+
+    const guild = await client.guilds.fetch(guildId);
+    if (!guild) throw new Error('Guild not found');
+
+    const msg = await webhook.editMessage(messageId, ({
+        content: content,
+        embeds: embeds,
+    }));
+
+    return msg;
+}
 
 
 
@@ -152,4 +172,8 @@ export async function fetchEventById(client: Client, guildId: string, eventId: s
         console.error('Error finding event by ID:', error);
         return null;
     }
+}
+
+export function wait(mils: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, mils));
 }
