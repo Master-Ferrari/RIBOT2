@@ -13,7 +13,7 @@ export const command = {
         .setName('emojis')
         .setDescription('list of server emojis'),
 
-    async execute(interaction: CommandInteraction<CacheType>): Promise<void> {
+    async onIteraction(interaction: CommandInteraction<CacheType>): Promise<void> {
         if (!interaction.guild) return;
 
         const emojis = interaction.guild.emojis.cache.map((emoji: GuildEmoji) => `${emoji.name}: ${emoji.toString()}`);

@@ -24,6 +24,7 @@ const client: Client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildScheduledEvents,
+        GatewayIntentBits.GuildMessageReactions
     ],
     partials: [
         Partials.Channel, // Required to receive DMs
@@ -89,8 +90,8 @@ type ScriptConfig = {
     };
     guilds: Array<ServerConfig>;
     data: SlashCommandBuilder | ContextMenuCommandBuilder;
-    execute(interaction: CommandInteraction, client: Client): Promise<void>;
-    execute(client: Client, guilds: Array<string>): Promise<void>;
+    onItenraction?(interaction: CommandInteraction, client: Client): Promise<void>;
+    onStart?(client: Client, guilds: Array<string>): Promise<void>;
 };
 
 type ServerConfig = {
@@ -169,9 +170,15 @@ async function loadScriptsFromDirectories(directoryPath: string, client: Client)
                     group: group,
                 },
                 guilds: guilds,
-                data: scriptFile.command.data,
-                execute: scriptFile.command.execute
+                data: scriptFile.command.data
             };
+            if (scriptFile.command.onItenraction) {
+                scriptData.onItenraction = scriptFile.command.onItenraction;
+            }
+            if (scriptFile.command.onStart) {
+                scriptData.onStart = scriptFile.command.onStart;
+            }
+
 
             scriptsList.push(scriptData);
         });
@@ -277,7 +284,8 @@ async function subscribeToInteractions(client: Client, scripts: ScriptConfig[]):
                     { foreground: 'yellow' })
                 + dateToStr(new Date(), "timeStamp"));
 
-            await script.execute(interaction, client);
+            if (script.onItenraction)
+                await script.onItenraction(interaction, client);
 
         });
     }
@@ -289,12 +297,14 @@ async function subscribeToInteractions(client: Client, scripts: ScriptConfig[]):
 //#region STARTUP
 
 async function launchStartupScripts(client: Client, scripts: ScriptConfig[]): Promise<void> {
-    const strtpScripts = scripts.filter(script => script.info.type === "startup");
+    // const strtpScripts = scripts.filter(script => script.info.type === "startup");
+    const strtpScripts = scripts.filter(script => script.onStart);
     if (strtpScripts.length === 0) return;
     await printL(format("Launching startup scripts", { foreground: 'white', background: 'magenta', bold: true, italic: true }));
     for (const script of strtpScripts) {
         await printL(format(script.info.comandName, { foreground: 'magenta', bold: true, italic: true }));
-        await script.execute(client, script.guilds.map(guild => guild.info.serverId));
+        if (script.onStart)
+            await script.onStart(client, script.guilds.map(guild => guild.info.serverId));
     }
 }
 

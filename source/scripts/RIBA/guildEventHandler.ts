@@ -28,7 +28,7 @@ export const command = {
         name: 'guildEventHandler',
     },
 
-    async execute(client: Client, guildIds: string[]): Promise<void> {
+    async onStart(client: Client, guildIds: string[]): Promise<void> {
         const events: string[] = [
             "guildScheduledEventCreate",
             "guildScheduledEventDelete",

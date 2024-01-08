@@ -16,7 +16,7 @@ export const command = {
                 .setDescription('from 1 to input number')
                 .setRequired(true)),
 
-    async execute(interaction: CommandInteraction, client: Client): Promise<void> {
+    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
         const options: any = interaction.options;
         const number = options.getInteger("number");

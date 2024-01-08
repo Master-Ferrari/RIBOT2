@@ -27,7 +27,7 @@ export const command = {
                     { name: 'True', value: 'True' }
                 )),
 
-    async execute(interaction: CommandInteraction, client: Client): Promise<void> {
+    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
         const options: any = interaction.options;
         const full = options.getString('full') === 'True';

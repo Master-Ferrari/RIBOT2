@@ -11,7 +11,7 @@ export const command = {
         .setName('ping2')
         .setDescription('its ponging'),
 
-    async execute(interaction: CommandInteraction, client: Client): Promise<void> {
+    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
         await interaction.reply({
             content: "pong",

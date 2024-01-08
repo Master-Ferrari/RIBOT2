@@ -34,7 +34,7 @@ export const command = {
                 ))
     ,
 
-    async execute(interaction: CommandInteraction, client: Client): Promise<void> {
+    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
         const options: any = interaction.options;
         const promt: string = options.getString("promt");

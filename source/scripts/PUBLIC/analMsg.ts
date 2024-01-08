@@ -15,7 +15,7 @@ export const command = {
         .setName('ANAL message')
         .setType(ApplicationCommandType.Message),
 
-    async execute(interaction: MessageContextMenuCommandInteraction, client: Client): Promise<void> {
+    async onIteraction(interaction: MessageContextMenuCommandInteraction, client: Client): Promise<void> {
 
         const targetMessage = interaction.targetMessage;
 

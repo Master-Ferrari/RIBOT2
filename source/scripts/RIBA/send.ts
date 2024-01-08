@@ -19,7 +19,7 @@ export const command = {
                 .setDescription('The channel you want to send the message to')
                 .setRequired(true)),
 
-    async execute(interaction: CommandInteraction) {
+    async onIteraction(interaction: CommandInteraction) {
         const options: any = interaction.options;
         const text = options.getString('text', true);
         const channel = options.getChannel('channel', true) as TextChannel;

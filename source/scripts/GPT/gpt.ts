@@ -1,6 +1,6 @@
-import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel } from 'discord.js';
+import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel, Events } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE } from '../../lib/consoleUtils';
-import { fetchLastNMessages, GuildSetting, fetchChannel, sendWebhookMsg } from '../../lib/discordUtils';
+import { fetchLastNMessages, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg } from '../../lib/discordUtils';
 import { GPT, History, gptModels } from '../../lib/openAI';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../lib/sqlite';
@@ -34,9 +34,7 @@ export const command = {
                 ))
     ,
 
-    async execute(interaction: CommandInteraction, client: Client): Promise<void> {
-
-
+    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
         const options: any = interaction.options;
         const model = options.getString("model") ?? 'gpt-4-1106-preview';
@@ -107,6 +105,25 @@ export const command = {
         });
 
         await interaction.deleteReply();
-        
+
     },
+
+    async onStart(client: Client, guildIds: string[]): Promise<void> {
+
+        client.on(Events.MessageReactionAdd, async (reaction, user) => {
+
+
+            if(reaction.message.guildId === null) {
+                printE('GuildId is null');
+                return;
+            };
+
+            const msg = await fetchMessage(reaction.message.id, reaction.message.channelId, reaction.message.guildId, client);
+
+            print(reaction.partial);
+            printD(msg);
+
+        });
+
+    }
 };

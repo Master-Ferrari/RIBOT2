@@ -21,7 +21,7 @@ export const command = {
     data: {
         name: 'gif lol',
     },
-    async execute(client: any, guilds: Array<string>) {
+    async onStart(client: any, guilds: Array<string>) {
         client.on('messageCreate', async (message: Message) => {
 
             if (!guilds.find(guild => guild === message.guildId)) return;
