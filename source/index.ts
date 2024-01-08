@@ -27,6 +27,9 @@ const client: Client = new Client({
     ],
     partials: [
         Partials.Channel, // Required to receive DMs
+
+        Partials.Reaction, // Required to receive old reactions
+        Partials.Message
     ]
 });
 

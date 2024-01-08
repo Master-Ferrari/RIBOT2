@@ -8,3 +8,4 @@ node_modules/
 dist - Copy/
 database.db
 source/scripts/RIBA/gifLolList.json
+output.wav
