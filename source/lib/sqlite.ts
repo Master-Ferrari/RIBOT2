@@ -153,6 +153,33 @@ class Database {
         });
     }
 
+    getTable(tableName: string): Promise<{ [key: string]: any } | null> {
+        return new Promise((resolve, reject) => {
+            this.db!.get(`SELECT name FROM sqlite_master WHERE type='table' AND name=?;`, [tableName], (err: any, row: any) => {
+                if (err) {
+                    console.error(`Could not check table existence`, err);
+                    reject(err);
+                } else if (!row) {
+                    resolve(null);
+                } else {
+                    this.db!.all(`SELECT key, value FROM ${tableName};`, (err: any, rows: any[]) => {
+                        if (err) {
+                            console.error(`Could not retrieve objects from table ${tableName}`, err);
+                            reject(err);
+                        } else {
+                            const keyValuePairs: { [key: string]: any } = {};
+                            rows.forEach((row: { key: string; value: string; }) => {
+                                keyValuePairs[row.key] = JSON.parse(row.value);
+                            });
+                            resolve(keyValuePairs);
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+
     static async interact(DBpath: string, callback: (db: Database) => Promise<any>): Promise<any> {
         const db = new Database(DBpath);
         await db.init();
@@ -160,7 +187,7 @@ class Database {
         await db.close();
         return clbck;
     }
-    
+
 }
 
 
