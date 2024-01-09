@@ -1,6 +1,6 @@
 import { Collection, WebhookClient, EmbedBuilder, Client, GuildScheduledEvent, Message, APIMessage, Guild, TextChannel } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE } from '../../lib/consoleUtils';
-import { fetchMessage, WebhookSend, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, wait } from '../../lib/discordUtils';
+import { fetchMessage, WebhookSend, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, wait, getSettings } from '../../lib/discordUtils';
 import Database from '../../lib/sqlite';
 
 
@@ -55,16 +55,18 @@ export const command = {
                 const subs: Collection<string, any> = event === "guildScheduledEventDelete" ? new Collection() : await guildScheduledEvent.fetchSubscribers();
 
                 const data = await Database.interact('database.db', async (db: Database) => { // читаем бд
-                    const guildSetting = await db.getJSON('guildSettings', guild.id) as GuildSetting || null;
+
+                    const guildSetting = await getSettings(["eventsChannelId", "mainWebhookLink"], db, guild.id);
+
                     const eventSetting = await db.getJSON('events', guildScheduledEvent.id) as EventSettings || null;
                     return { guild: guildSetting, event: eventSetting };
                 });
 
-                if (data.guild === null || data.guild.eventschannelId === null) {
-                    printE('Guild setting not found or events channel not set');
-                    // await interaction.editReply({ content: "в /settings канал эвентов добавь" });
+                if (typeof data.guild === "string") {
+                    printE(data.guild);
                     return;
-                };
+                }
+
 
                 const username = guildScheduledEvent.creator?.username ?? client.user?.username ?? 'Unknown';
                 const avatarUrl = guildScheduledEvent.creator?.displayAvatarURL() ?? client.user?.displayAvatarURL() ?? 'https://cdn.discordapp.com/embed/avatars/2.png';
@@ -81,7 +83,7 @@ export const command = {
                                 .setDescription("<a:loading:1078462597982081096>");
                         })()
                     ],
-                    channelId: data.guild.eventschannelId,
+                    channelId: data.guild.eventsChannelId,
                     guildId: guild.id,
                     username: username,
                     avatarURL: avatarUrl,
@@ -90,7 +92,7 @@ export const command = {
 
                 let eventMsg: Message; // хотим
                 if (data.event === null || data.event.channelId === null) { // если нет записи
-                    const channel = await fetchChannel(client, guild.id, data.guild.eventschannelId);
+                    const channel = await fetchChannel(client, guild.id, data.guild.eventsChannelId);
                     if (!channel) { throw new Error('Channel not found'); }
 
                     eventMsg = await webhook(webhookSend); // нет записи. шлём.
@@ -101,7 +103,7 @@ export const command = {
                     if (message) { eventMsg = message; } // нашли
                     else {
                         eventMsg = await webhook(webhookSend); // в записи ошибка. шлём.
-                        await addEventToDB(guildScheduledEvent.id, guild.id, data.guild.eventschannelId, eventMsg.id, guildScheduledEvent);
+                        await addEventToDB(guildScheduledEvent.id, guild.id, data.guild.eventsChannelId, eventMsg.id, guildScheduledEvent);
                     }
                 }
 
@@ -154,7 +156,7 @@ ${guildScheduledEvent.description !== "" ? "\`\`\`" + guildScheduledEvent.descri
                 for (const [userId, userData] of subs) {
                     embed2.addFields({ name: ' ', value: `<@${userId}>`, inline: true });
                 }
-                
+
 
                 webhookSend.embeds = [embed, embed2];
 

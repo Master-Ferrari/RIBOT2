@@ -1,6 +1,6 @@
 import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel, EmbedBuilder } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE } from '../../lib/consoleUtils';
-import { fetchLastNMessages, GuildSetting, fetchChannel, sendWebhookMsg, } from '../../lib/discordUtils';
+import { fetchLastNMessages, GuildSetting, fetchChannel, sendWebhookMsg, getSettings } from '../../lib/discordUtils';
 import { GPT, History, gptModels, ModelVersions } from '../../lib/openAI';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../lib/sqlite';
@@ -42,19 +42,6 @@ export const command = {
             return;
         };
 
-        // const lastMessages: Message[] = await fetchLastNMessages(interaction.guildId, interaction.channelId, visiondistance, client);
-
-        await interaction.deferReply({ ephemeral: false });
-
-        let guildSetting: GuildSetting = await Database.interact('database.db', async (db) => {
-            return await db.getJSON('guildSettings', String(interaction.guildId));
-        });
-
-        if (!guildSetting || !guildSetting.mainWebhookLink) {
-            printE('Guild setting not found or main webhook not set');
-            await interaction.editReply({ content: "в /settings вебхук добавь" });
-            return;
-        };
 
         await send(
             `## 0/2\n<a:loading:1078462597982081096>`,

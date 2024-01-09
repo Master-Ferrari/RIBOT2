@@ -1,25 +1,45 @@
-import { Client, Message, TextChannel, Guild, GuildBasedChannel, WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable, EmbedBuilder } from 'discord.js';
+import { Client, Message, TextChannel, Guild, GuildBasedChannel, WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable, EmbedBuilder, FetchMessagesOptions } from 'discord.js';
 import { print, printD, printE, printL, format, dateToStr } from '../lib/consoleUtils';
+import Database from "../lib/sqlite"
 
 export type GuildSetting = {
     guildName: string;
     guildId: string;
     botChannelId: string;
     mainWebhookLink: string;
-    eventschannelId: string;
+    eventsChannelId: string;
+    gptChannelId: string;
 };
 
-export function isGuildSetting(obj: any): obj is GuildSetting {
-    return (
-        obj &&
-        typeof obj === 'object' &&
-        typeof obj.guildName === 'string' &&
-        typeof obj.guildId === 'string' &&
-        typeof obj.botChannelId === 'string' &&
-        typeof obj.mainWebhookLink === 'string' &&
-        typeof obj.eventschannelId === 'string'
-    );
+export function completeGuildSettings(partial: Partial<GuildSetting>): GuildSetting {
+    const defaultValues: GuildSetting = {
+        guildName: '',
+        guildId: '',
+        botChannelId: '',
+        mainWebhookLink: '',
+        eventsChannelId: '',
+        gptChannelId: '',
+    };
+
+    return { ...defaultValues, ...partial };
 }
+
+export async function getSettings(settings: Array<keyof GuildSetting>, db: Database, guildId: string): Promise<GuildSetting | string> {
+
+    const dbData = await db.getJSON('guildSettings', String(guildId));
+    if (!dbData) return `добавь в /settings эти штуки: ${settings.join(', ')}`;
+
+    const completedData: GuildSetting = completeGuildSettings(dbData as Partial<GuildSetting>);
+
+    const missingSettings = settings.filter(setting => !completedData[setting as keyof GuildSetting]);
+
+    if (missingSettings.length > 0) {
+        return `Добавь в /settings эти штуки: ${missingSettings.join(', ')}`;
+    }
+
+    return completedData;
+}
+
 
 export async function findMessage(channelId: string, userId: string, content: string, client: Client): Promise<Message | null> {
     const channel = await client.channels.fetch(channelId);
@@ -81,22 +101,24 @@ export async function fetchChannel(client: Client, guildId: string, channelId: s
     return channel as GuildBasedChannel | undefined;
 }
 
-export async function fetchLastNMessages(guildId: string, channelId: string, n: number, client: Client): Promise<Message[]> {
+export async function fetchLastNMessages(guildId: string, channelId: string, n: number, client: Client, relative?: "before" | "after", messageId?: string): Promise<Message[]> {
     try {
         const guild = await client.guilds.fetch(guildId);
         if (!guild) throw new Error('Guild not found');
 
         const channel = guild.channels.cache.get(channelId);
         if (!channel || !(channel instanceof TextChannel)) throw new Error('Channel not found or is not a text channel');
-
-        const messages = await channel.messages.fetch({ limit: n });
+        const options: FetchMessagesOptions = { limit: n };
+        if (relative && messageId) {
+            options[relative] = messageId;
+        }
+        const messages = await channel.messages.fetch(options);
         return Array.from(messages.values());
     } catch (error) {
-        printE('Failed to fetch messages:', error);
+        console.error('Failed to fetch messages:', error);
         return [];
     }
 }
-
 
 export type WebhookSend = {
     content: string | undefined;

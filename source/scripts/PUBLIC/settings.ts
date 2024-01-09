@@ -1,8 +1,9 @@
 import { CommandInteraction, SlashCommandBuilder, Client, ChannelType } from 'discord.js';
-import { print, printD, printE, format, dateToStr } from '../../lib/consoleUtils';
-import { fetchLastNMessages, GuildSetting, isGuildSetting, fetchChannel } from '../../lib/discordUtils';
+import { print, printD, printE, printL, format, dateToStr } from '../../lib/consoleUtils';
+import { fetchLastNMessages, GuildSetting, fetchChannel, completeGuildSettings } from '../../lib/discordUtils';
 
 import Database from '../../lib/sqlite';
+import { loadScriptsFromDirectories } from '../../index';
 
 export const command = {
 
@@ -30,6 +31,11 @@ export const command = {
                     option.setName('eventschannel')
                         .setDescription('events channel')
                         .setRequired(false)
+                        .addChannelTypes(ChannelType.GuildText))
+                .addChannelOption(option =>
+                    option.setName('gptchannel')
+                        .setDescription('gpt channel')
+                        .setRequired(false)
                         .addChannelTypes(ChannelType.GuildText)))
         .addSubcommand(subcommand =>
             subcommand
@@ -44,27 +50,25 @@ export const command = {
         const botsChannel = options.getChannel("botschannel");
         const mainWebhook = options.getString("webhook");
         const eventsChannel = options.getChannel("eventschannel");
-        printD({_subcommand:options._subcommand});
+        const gptchannel = options.getChannel("gptchannel");
 
         const guildSetting = await Database.interact('database.db', async (db) => {
             const result = await db.getJSON('guildSettings', String(interaction.guildId));
 
-            let guildSetting: GuildSetting | null = null;
+            let guildSetting = completeGuildSettings(result as Partial<GuildSetting>);
 
-            if (isGuildSetting(result)) {
-                guildSetting = result as GuildSetting;
-            }
 
             if (options._subcommand == "get") {
                 return guildSetting;
             }
 
             guildSetting = {
-                guildName: interaction.guild?.name || guildSetting?.guildName || "",
-                guildId: interaction.guild?.id || guildSetting?.guildId || "",
-                botChannelId: botsChannel?.id || guildSetting?.botChannelId || "",
-                mainWebhookLink: mainWebhook || guildSetting?.mainWebhookLink || "",
-                eventschannelId: eventsChannel?.id || guildSetting?.eventschannelId || "",
+                guildName: interaction.guild?.name || guildSetting.guildName || "",
+                guildId: interaction.guild?.id || guildSetting.guildId || "",
+                botChannelId: botsChannel?.id || guildSetting.botChannelId || "",
+                mainWebhookLink: mainWebhook || guildSetting.mainWebhookLink || "",
+                eventsChannelId: eventsChannel?.id || guildSetting.eventsChannelId || "",
+                gptChannelId: gptchannel?.id || guildSetting.gptChannelId || "",
             };
 
             await db.setJSON('guildSettings', String(interaction.guildId), guildSetting);
@@ -85,5 +89,13 @@ export const command = {
             ephemeral: true
         });
 
+        const scriptsData = await loadScriptsFromDirectories(client);
+
+        for (const script of scriptsData.scriptsList) {
+            if (script.onUpdate) {
+                await script.onUpdate(client, script.guilds.map(guild => guild.info.serverId));
+                printL(script.info.comandName + ' updated');
+            }
+        }
     },
 };

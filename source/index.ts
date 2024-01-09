@@ -42,7 +42,7 @@ client.once(Events.ClientReady, async () => {
         + dateToStr(new Date(), "timeStamp"));
 
 
-    const scriptsData = await loadScriptsFromDirectories(scriptsPath, client);
+    const scriptsData = await loadScriptsFromDirectories(client, scriptsPath);
 
     if (process.argv.includes('update')) {
         await deployCommands(scriptsData.serverList, client);
@@ -92,6 +92,7 @@ type ScriptConfig = {
     data: SlashCommandBuilder | ContextMenuCommandBuilder;
     onIteraction?(interaction: CommandInteraction, client: Client): Promise<void>;
     onStart?(client: Client, guilds: Array<string>): Promise<void>;
+    onUpdate?(client: Client, guilds: Array<string>): Promise<void>;
 };
 
 type ServerConfig = {
@@ -102,7 +103,7 @@ type ServerConfig = {
     scripts: Array<ScriptConfig>;
 };
 
-async function loadScriptsFromDirectories(directoryPath: string, client: Client):
+export async function loadScriptsFromDirectories(client: Client, directoryPath: string = scriptsPath):
     Promise<{ serverList: ServerConfig[], scriptsList: ScriptConfig[] }> {
 
     const serverList: ServerConfig[] = [];
@@ -177,6 +178,9 @@ async function loadScriptsFromDirectories(directoryPath: string, client: Client)
             }
             if (scriptFile.command.onStart) {
                 scriptData.onStart = scriptFile.command.onStart;
+            }
+            if (scriptFile.command.onUpdate) {
+                scriptData.onUpdate = scriptFile.command.onUpdate;
             }
 
 
