@@ -90,7 +90,7 @@ type ScriptConfig = {
     };
     guilds: Array<ServerConfig>;
     data: SlashCommandBuilder | ContextMenuCommandBuilder;
-    onItenraction?(interaction: CommandInteraction, client: Client): Promise<void>;
+    onIteraction?(interaction: CommandInteraction, client: Client): Promise<void>;
     onStart?(client: Client, guilds: Array<string>): Promise<void>;
 };
 
@@ -172,8 +172,8 @@ async function loadScriptsFromDirectories(directoryPath: string, client: Client)
                 guilds: guilds,
                 data: scriptFile.command.data
             };
-            if (scriptFile.command.onItenraction) {
-                scriptData.onItenraction = scriptFile.command.onItenraction;
+            if (scriptFile.command.onIteraction) {
+                scriptData.onIteraction = scriptFile.command.onIteraction;
             }
             if (scriptFile.command.onStart) {
                 scriptData.onStart = scriptFile.command.onStart;
@@ -284,8 +284,9 @@ async function subscribeToInteractions(client: Client, scripts: ScriptConfig[]):
                     { foreground: 'yellow' })
                 + dateToStr(new Date(), "timeStamp"));
 
-            if (script.onItenraction)
-                await script.onItenraction(interaction, client);
+            if (script.onIteraction) {
+                await script.onIteraction(interaction, client);
+            }
 
         });
     }

@@ -37,13 +37,14 @@ export const command = {
                 .setDescription('show server settings'))
     ,
 
-    async execute(interaction: CommandInteraction, client: Client): Promise<void> {
+    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
         const options: any = interaction.options;
 
         const botsChannel = options.getChannel("botschannel");
         const mainWebhook = options.getString("webhook");
         const eventsChannel = options.getChannel("eventschannel");
+        printD({_subcommand:options._subcommand});
 
         const guildSetting = await Database.interact('database.db', async (db) => {
             const result = await db.getJSON('guildSettings', String(interaction.guildId));
