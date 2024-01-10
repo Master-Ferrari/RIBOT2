@@ -1,7 +1,7 @@
 import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel, EmbedBuilder } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE } from '../../lib/consoleUtils';
 import { fetchLastNMessages, GuildSetting, fetchChannel, sendWebhookMsg, getSettings } from '../../lib/discordUtils';
-import { GPT, History, gptModels, ModelVersions } from '../../lib/openAI';
+import { GPT, History, gptModels, ModelVersions } from '../../lib/gptHandler';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../lib/sqlite';
 

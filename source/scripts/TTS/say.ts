@@ -1,16 +1,13 @@
 import { CommandInteraction, SlashCommandBuilder, Client } from 'discord.js';
 import { print, printD, printE, format, dateToStr } from '../../lib/consoleUtils';
-import { PythonCommunicator } from '../../lib/pythonHandler';
-import { wait } from '../../lib/discordUtils';
+
 import path from 'path';
 import fs from 'fs';
 
-const scriptName = 'test.py';
-const scriptsPath = path.join(__dirname, '../../../../TTS4/', scriptName);
+import { TTSFactory, voicesOpenAI } from '../../lib/tts';
+
 const voicesPath = path.join(__dirname, '../../../../TTS4/misc/');
-const outputPath = path.join(__dirname, '../../../output.wav');
 const voices = fs.readdirSync(voicesPath).map(file => path.basename(file, '.wav'));
-print ({voices});
 
 export const command = {
 
@@ -19,7 +16,7 @@ export const command = {
     },
 
     data: new SlashCommandBuilder()
-        .setName('tts')
+        .setName('say')
         .setDescription('its ttsing')
         .addStringOption(option =>
             option.setName('promt')
@@ -30,40 +27,26 @@ export const command = {
                 .setDescription('voice')
                 .setRequired(true)
                 .addChoices(
-                    ...voices.map(voice => ({ name: voice, value: voice })),
-                ))
-    ,
+                    ...voices.map(voice => ({ name: "[CoquiAI] " + voice, value: voice })),
+                    ...voicesOpenAI.map(voice => ({ name: "[OpenAI] " + voice, value: voice })),
+                )),
 
     async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
         const options: any = interaction.options;
-        const promt: string = options.getString("promt");
+        const prompt: string = options.getString("promt");
         const voice: string = options.getString("voice");
 
         interaction.deferReply({ ephemeral: false });
 
-        const tts = new PythonCommunicator(scriptsPath, {
-            onData: (data) => {
-                print(format(data, { bold: true, foreground: 'white', background: 'green' }));
-                if (data.includes('one')) {
+        let tts = TTSFactory.createTTS(voice);
 
-
-
-
-
-
-                    interaction.editReply({ files: [outputPath] });
-                }
+        tts.send({
+            prompt, voice, onWav: (data) => {
+                interaction.editReply({ files: [tts.outputPath] });
             }
         });
 
-        const args = JSON.stringify({ promt, voice });
-
-        printD({ args });
-
-        tts.send(args);
-        tts.close();
-
-
+        const args = JSON.stringify({ promt: prompt, voice });
     },
 };

@@ -129,10 +129,11 @@ export type WebhookSend = {
     username?: string;
     avatarURL?: string;
     client: Client;
+    files?: Array<string>;
 };
 
 export async function sendWebhookMsg(params: WebhookSend): Promise<Message> {
-    const { client, webhookUrl, content, embeds, channelId, guildId, username, avatarURL } = params;
+    const { client, webhookUrl, content, embeds, channelId, guildId, username, avatarURL, files } = params;
 
     const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
 
@@ -150,13 +151,14 @@ export async function sendWebhookMsg(params: WebhookSend): Promise<Message> {
         embeds: embeds,
         username: username || undefined,
         avatarURL: avatarURL || undefined,
+        files: files || undefined
     });
 
     return msg;
 }
 
 export async function editWebhookMsg(messageId: string, params: WebhookSend): Promise<Message> {
-    const { client, webhookUrl, content, embeds, channelId, guildId, username, avatarURL } = params;
+    const { client, webhookUrl, content, embeds, channelId, guildId, username, avatarURL, files } = params;
 
     const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
 
@@ -172,6 +174,7 @@ export async function editWebhookMsg(messageId: string, params: WebhookSend): Pr
     const msg = await webhook.editMessage(messageId, ({
         content: content,
         embeds: embeds,
+        files: files || undefined
     }));
 
     return msg;
@@ -198,4 +201,38 @@ export async function fetchEventById(client: Client, guildId: string, eventId: s
 
 export function wait(mils: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, mils));
+}
+
+
+export type updateReactionsOptions = {
+    reactions: Array<string>,
+    client: Client
+    msg: Message
+}
+
+export async function updateReactions({ reactions, client, msg }: updateReactionsOptions): Promise<void> {
+    try {
+        const userReactions = msg.reactions.cache;
+        for (const reaction of userReactions.values()) {
+            const reactionName = reaction.emoji.name;
+            if (reactionName && !reactions.includes(reactionName)) {
+                await reaction.remove();
+            } else if (reactionName) {
+                const users = await reaction.users.fetch();
+                for (const [userId] of users) {
+                    if (client.user && userId !== client.user.id) {
+                        await reaction.users.remove(userId);
+                    }
+                }
+            }
+        }
+
+        for (const reaction of reactions) {
+            if (!msg.reactions.cache.some(r => r.emoji.name === reaction)) {
+                await msg.react(reaction);
+            }
+        }
+    } catch (error) {
+        console.error('Failed to update reactions:', error);
+    }
 }

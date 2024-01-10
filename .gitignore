@@ -9,3 +9,4 @@ dist - Copy/
 database.db
 source/scripts/RIBA/gifLolList.json
 output.wav
+speech.mp3

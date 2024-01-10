@@ -90,12 +90,13 @@ export const command = {
                     client: client
                 };
 
-                let eventMsg: Message; // хотим
+                let eventMsg: Message | undefined; // хотим
                 if (data.event === null || data.event.channelId === null) { // если нет записи
                     const channel = await fetchChannel(client, guild.id, data.guild.eventsChannelId);
                     if (!channel) { throw new Error('Channel not found'); }
 
                     eventMsg = await webhook(webhookSend); // нет записи. шлём.
+                    if (!eventMsg) return;
                     await addEventToDB(guildScheduledEvent.id, guild.id, channel.id, eventMsg.id, guildScheduledEvent);
                 }
                 else { // если есть запись
@@ -103,6 +104,7 @@ export const command = {
                     if (message) { eventMsg = message; } // нашли
                     else {
                         eventMsg = await webhook(webhookSend); // в записи ошибка. шлём.
+                        if (!eventMsg) return;
                         await addEventToDB(guildScheduledEvent.id, guild.id, data.guild.eventsChannelId, eventMsg.id, guildScheduledEvent);
                     }
                 }
@@ -167,16 +169,22 @@ ${guildScheduledEvent.description !== "" ? "\`\`\`" + guildScheduledEvent.descri
     }
 }
 
-async function webhook(params: WebhookSend): Promise<Message>;
-async function webhook(messageId: string, params: WebhookSend): Promise<Message>;
+async function webhook(params: WebhookSend): Promise<Message | undefined>;
+async function webhook(messageId: string, params: WebhookSend): Promise<Message | undefined>;
 
-async function webhook(...args: [WebhookSend] | [string, WebhookSend]): Promise<Message> {
-    if (args.length === 1) {
-        return await sendWebhookMsg(args[0]);
-    } else if (args.length === 2 && typeof args[0] === 'string') {
-        return await editWebhookMsg(args[0], args[1]);
-    } else {
-        throw new Error('Invalid arguments');
+async function webhook(...args: [WebhookSend] | [string, WebhookSend]): Promise<Message | undefined> {
+    try {
+        if (args.length === 1) {
+            return await sendWebhookMsg(args[0]);
+        } else if (args.length === 2 && typeof args[0] === 'string') {
+            return await editWebhookMsg(args[0], args[1]);
+        } else {
+            throw new Error('Invalid arguments');
+        }
+    }
+    catch (error) {
+        printE(error);
+        return undefined;
     }
 }
 

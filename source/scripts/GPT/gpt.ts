@@ -1,14 +1,17 @@
 import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel, Events, User, PartialUser, PartialMessageReaction, MessageReaction } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE } from '../../lib/consoleUtils';
-import { fetchLastNMessages, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings } from '../../lib/discordUtils';
-import { GPT, History, ModelVersions, gptModels } from '../../lib/openAI';
+import { fetchLastNMessages, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings, updateReactions } from '../../lib/discordUtils';
+import { GPT, History, ModelVersions, gptModels } from '../../lib/gptHandler';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../lib/sqlite';
-import { before } from 'node:test';
+import { CoquiTTS } from '../../lib/tts';
 
 const defaultVisionDistance = 15;
 const defaultModel: ModelVersions = "gpt-4-1106-preview";
 let guildSettingS: any;
+
+const reactions = ["♻️", "❎", "📣"];
+const waitReaction = "🤔";
 
 export const command = {
 
@@ -63,7 +66,7 @@ export const command = {
             return;
         };
 
-        printD({ guildSetting });
+        // printD({ guildSetting });
         // if (!guildSetting || !guildSetting.mainWebhookLink) {
         //     printE('Guild setting not found or main webhook not set');
         //     await interaction.editReply({ content: "в /settings вебхук добавь" });
@@ -85,11 +88,7 @@ export const command = {
             avatarURL: client.user?.displayAvatarURL()
         });
 
-        // if (whMsg.guildId)
-        // const whMsgF = await fetchMessage(whMsg.id, whMsg.channelId, interaction.guildId, client)
-        whMsg.react('♻️')
-            .then(() => whMsg.react('❎'))
-            .catch(error => printE('One of the emojis failed to react:', error));
+        updateReactions({ client, msg: whMsg, reactions });
 
     },
 
@@ -128,12 +127,23 @@ export const command = {
                     };
 
                     const lastMessages: Message[] = await fetchLastNMessages(userMessage.guildId, userMessage.channelId, defaultVisionDistance, client);
-                    const message = await userMessage.reply("<a:loading:1078462597982081096>");
+                    // const message = await userMessage.reply("⏳");//watch emoji
+                    // await message.delete();
+                    const whMsg = await sendWebhookMsg({
+                        client: client,
+                        webhookUrl: guildSetting.mainWebhookLink,
+                        content: "<a:loading:1078462597982081096>",
+                        channelId: userMessage.channelId,
+                        guildId: userMessage.guildId,
+                        username: defaultModel,
+                        avatarURL: client.user?.displayAvatarURL()
+                    });
                     const content = await askGpt(client, gptModels, lastMessages, defaultVisionDistance, defaultModel);
 
-                    await message.delete();
+                    // await message.delete();
 
-                    const whMsg = await sendWebhookMsg({
+                    await editWebhookMsg(
+                        whMsg.id, {
                         client: client,
                         webhookUrl: guildSetting.mainWebhookLink,
                         content: content,
@@ -143,9 +153,7 @@ export const command = {
                         avatarURL: client.user?.displayAvatarURL()
                     });
 
-                    whMsg.react('♻️')
-                        .then(() => whMsg.react('❎'))
-                        .catch(error => printE('One of the emojis failed to react:', error));
+                    updateReactions({ client, msg: whMsg, reactions });
 
                 }
             };
@@ -192,9 +200,9 @@ export const command = {
             if (users.size > 1) {
                 if (reaction.emoji.name === '♻️') {
                     printL('♻️');
-
+                    msg.react(waitReaction);
                     const lastMessages: Message[] = await fetchLastNMessages(reaction.message.guildId, reaction.message.channelId, defaultVisionDistance, client, "before", msg.id);
-                    printD({ lastMessages: lastMessages[0].content });
+                    // printD({ lastMessages: lastMessages[0].content });
 
                     await editWebhookMsg(
                         msg.id,
@@ -205,7 +213,8 @@ export const command = {
                             channelId: reaction.message.channelId,
                             guildId: reaction.message.guildId,
                             username: msg.author.username,
-                            avatarURL: client.user?.displayAvatarURL()
+                            avatarURL: client.user?.displayAvatarURL(),
+                            files: []
                         });
 
                     const content = await askGpt(client, gptModels, lastMessages, defaultVisionDistance, msg.author.username as ModelVersions);
@@ -222,13 +231,7 @@ export const command = {
                             avatarURL: client.user?.displayAvatarURL()
                         });
 
-                    if (reaction) {
-                        reaction.users.cache.forEach(user => {
-                            if (user.id !== client.user?.id) {
-                                reaction.users.remove(user);
-                            }
-                        });
-                    }
+                    updateReactions({ client, msg, reactions });
 
                 }
 
@@ -236,13 +239,37 @@ export const command = {
                     printL('❎');
                     await reaction.message.delete();
                 }
+
+                else if (reaction.emoji.name === '📣') {
+                    printL('📣 ' + msg.content);
+
+                    msg.react(waitReaction);
+                    const tts = CoquiTTS.getInstance()
+                    tts.send({
+                        prompt: msg.content, onWav: async (data) => {
+                            if (!msg.guildId) return;
+                            print("редактируем " + msg.id);
+                            await editWebhookMsg(
+                                msg.id,
+                                {
+                                    client: client,
+                                    webhookUrl: guildSetting.mainWebhookLink,
+                                    content: msg.content,
+                                    channelId: msg.channelId,
+                                    guildId: msg.guildId,
+                                    username: msg.author.username,
+                                    avatarURL: client.user?.displayAvatarURL(),
+                                    files: [tts.outputPath],
+                                }
+                            );
+                            updateReactions({ client, msg, reactions });
+                        }
+                    });
+                }
             }
-
         }
-
     }
 };
-
 
 
 async function askGpt(client: Client, gptModels: string[], lastMessages: Message[],
@@ -256,6 +283,7 @@ async function askGpt(client: Client, gptModels: string[], lastMessages: Message
 Для кода ВСЕГДА используется форматирование: \`\`\`[язык][код]\`\`\` .
 Отвечай на последние вопросы или сообщения.\n
 Отвечай в формате JSON {"ans": "твой ответ"}!!!
+Отвечай на русском языке.
 Свой ник в ответе не пиши. Только текст ответа.
 Последние ${visiondistance} сообщений:\n`
             + lastMessages.map(msg => {
@@ -279,5 +307,5 @@ async function askGpt(client: Client, gptModels: string[], lastMessages: Message
         content = ans.ans;
     }
 
-    return content;
+    return content || 'Нет ответа';
 }

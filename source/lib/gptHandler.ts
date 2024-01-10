@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { printD, printE } from './../lib/consoleUtils';
+import { printD, printE } from './consoleUtils';
 
 export const gptModels = ['gpt-3.5-turbo-1106', 'gpt-4-1106-preview'];
 export type ModelVersions = 'gpt-3.5-turbo-1106' | 'gpt-4-1106-preview';
