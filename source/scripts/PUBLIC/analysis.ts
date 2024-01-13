@@ -12,7 +12,7 @@ export const command = {
     },
 
     data: new ContextMenuCommandBuilder()
-        .setName('ANAL message')
+        .setName('analysis')
         .setType(ApplicationCommandType.Message),
 
     async onIteraction(interaction: MessageContextMenuCommandInteraction, client: Client): Promise<void> {

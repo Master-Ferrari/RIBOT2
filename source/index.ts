@@ -125,7 +125,7 @@ export async function loadScriptsFromDirectories(client: Client, directoryPath: 
         const groupConfig: GroupConfig = JSON.parse(fs.readFileSync(groupConfigFile, 'utf-8'));
 
         if (groupConfig.global) {
-            if (serverList.find(guild => guild.info.serverName !== "global")) {
+            if (!serverList.find(guild => guild.info.serverName === "global")) {
                 serverList.push({
                     info: {
                         serverName: "global",
@@ -227,6 +227,8 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
 
     await printL(format("Deploying commands", { foreground: 'white', background: 'blue', bold: true, italic: true }));
 
+    printD({serverList},{depth:3});
+
     for (const server of serverList) {
 
         const commands: (SlashCommandBuilder | ContextMenuCommandBuilder)[] = [];
@@ -239,7 +241,7 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
             continue;
         }
 
-        await printL("    Server: " + format(guildName, { foreground: 'yellow' }));
+        await printL("    Server: " + format(guildName, { foreground: 'yellow', background: server.info.serverName === "global" ? 'magenta' : undefined}));
 
         if (server.scripts.length === 0) {
             await printL('  Commands: ' + format(`no commands`, { foreground: 'red', bold: true }));
