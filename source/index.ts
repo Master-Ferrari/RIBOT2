@@ -80,6 +80,7 @@ const rest = new REST({ version: '9' }).setToken(ribotToken);
 
 type GroupConfig = {
     guilds: Record<string, string>;
+    global: boolean;
 };
 
 type ScriptConfig = {
@@ -88,6 +89,7 @@ type ScriptConfig = {
         type: string;
         group: string;
     };
+    global: boolean;
     guilds: Array<ServerConfig>;
     data: SlashCommandBuilder | ContextMenuCommandBuilder;
     onIteraction?(interaction: CommandInteraction, client: Client): Promise<void>;
@@ -122,6 +124,17 @@ export async function loadScriptsFromDirectories(client: Client, directoryPath: 
         }
         const groupConfig: GroupConfig = JSON.parse(fs.readFileSync(groupConfigFile, 'utf-8'));
 
+        if (groupConfig.global) {
+            if (serverList.find(guild => guild.info.serverName !== "global")) {
+                serverList.push({
+                    info: {
+                        serverName: "global",
+                        serverId: ""
+                    },
+                    scripts: []
+                })
+            }
+        }
 
         for (const [serverId, configServerName] of Object.entries(groupConfig.guilds)) {
 
@@ -162,7 +175,7 @@ export async function loadScriptsFromDirectories(client: Client, directoryPath: 
 
             const scriptFile = require(fullPath);
 
-            const guilds: ServerConfig[] = serverList.filter(server => groupConfig.guilds[server.info.serverId]);
+            const guilds: ServerConfig[] = !groupConfig.global ? serverList.filter(server => groupConfig.guilds[server.info.serverId]) : [];
 
             const scriptData: ScriptConfig = {
                 info: {
@@ -170,9 +183,11 @@ export async function loadScriptsFromDirectories(client: Client, directoryPath: 
                     type: scriptFile.command.info.type,
                     group: group,
                 },
+                global: groupConfig.global,
                 guilds: guilds,
                 data: scriptFile.command.data
             };
+
             if (scriptFile.command.onIteraction) {
                 scriptData.onIteraction = scriptFile.command.onIteraction;
             }
@@ -191,7 +206,8 @@ export async function loadScriptsFromDirectories(client: Client, directoryPath: 
     // Linking scripts to guilds
     for (const server of serverList) {
         for (const script of scriptsList) {
-            if (script.guilds.find(guild => guild.info.serverId === server.info.serverId)) {
+            if (script.guilds.find(guild => guild.info.serverId === server.info.serverId) ||
+                server.info.serverName === "global" && script.global) {
 
                 if (server.scripts.find(SCRIPT => SCRIPT.info.comandName === script.info.comandName)) {
                     printE(`Script ${script.info.comandName} already exists in ${server.info.serverName}`);
@@ -215,15 +231,15 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
 
         const commands: (SlashCommandBuilder | ContextMenuCommandBuilder)[] = [];
 
-        const guild = await fetchGuild(client, server.info.serverId);
+        const guildName = server.info.serverId ? await fetchGuild(client, server.info.serverId).then(guild => guild?.name) : server.info.serverName;
 
 
-        if (!guild) {
+        if (!guildName) {
             await printL("    Server: " + format(`not found (id ${server.info.serverId})`, { foreground: 'red', bold: true }));
             continue;
         }
 
-        await printL("    Server: " + format(guild.name, { foreground: 'yellow' }));
+        await printL("    Server: " + format(guildName, { foreground: 'yellow' }));
 
         if (server.scripts.length === 0) {
             await printL('  Commands: ' + format(`no commands`, { foreground: 'red', bold: true }));
@@ -254,7 +270,9 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
         try {
 
             await rest.put(
-                Routes.applicationGuildCommands(clientId, server.info.serverId),
+                server.info.serverName === "global" ?
+                    Routes.applicationCommands(clientId) :
+                    Routes.applicationGuildCommands(clientId, server.info.serverId),
                 { body: commands },
             );
 
@@ -278,8 +296,10 @@ async function subscribeToInteractions(client: Client, scripts: ScriptConfig[]):
 
         client.on('interactionCreate', async interaction => {
 
+            // printD({interaction});
+
             if (!interaction.isCommand() && !interaction.isContextMenuCommand()) return;
-            if (!script.guilds.find(guild => guild.info.serverId === interaction.guildId)) return;
+            if (!script.guilds.find(guild => guild.info.serverId === interaction.guildId) && interaction.guildId !== null) return;
             if (interaction.commandName !== script.data.name) return;
 
             await printL(interaction.user.username +
@@ -291,7 +311,6 @@ async function subscribeToInteractions(client: Client, scripts: ScriptConfig[]):
             if (script.onIteraction) {
                 await script.onIteraction(interaction, client);
             }
-
         });
     }
 }
