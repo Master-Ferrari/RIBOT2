@@ -4,14 +4,15 @@ import { fetchLastNMessages, fetchMessage, GuildSetting, fetchChannel, sendWebho
 import { GPT, History, ModelVersions, gptModels } from '../../lib/gptHandler';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../lib/sqlite';
-import { CoquiTTS } from '../../lib/tts';
+import { TTSFactory } from '../../lib/tts';
 
 const defaultVisionDistance = 15;
 const defaultModel: ModelVersions = "gpt-4-1106-preview";
 let guildSettingS: any;
 
 const reactions = ["♻️", "❎", "📣"];
-const waitReaction = "🤔";
+const waitReaction = "<a:discordloading2:1194652977256992930>";
+const waitReactionFlat = "<a:discordloading:1192816519525183519>";
 
 export const command = {
 
@@ -39,8 +40,7 @@ export const command = {
                 .setRequired(false)
                 .addChoices(
                     ...gptModels.map(model => ({ name: model, value: model })),
-                ))
-    ,
+                )),
 
     async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
@@ -65,14 +65,6 @@ export const command = {
             await interaction.editReply({ content: guildSetting });
             return;
         };
-
-        // printD({ guildSetting });
-        // if (!guildSetting || !guildSetting.mainWebhookLink) {
-        //     printE('Guild setting not found or main webhook not set');
-        //     await interaction.editReply({ content: "в /settings вебхук добавь" });
-        //     return;
-        // };
-
 
         const content = await askGpt(client, gptModels, lastMessages, visiondistance, model);
 
@@ -104,9 +96,6 @@ export const command = {
             return await db.getTable('guildSettings');
         });
 
-        // printD({guildSetting});
-
-
         client.on(Events.MessageCreate, async (userMessage) => {
             if (!userMessage.guild) return;
             if (!guildIds.includes(userMessage.guild.id)) return;
@@ -127,20 +116,17 @@ export const command = {
                     };
 
                     const lastMessages: Message[] = await fetchLastNMessages(userMessage.guildId, userMessage.channelId, defaultVisionDistance, client);
-                    // const message = await userMessage.reply("⏳");//watch emoji
-                    // await message.delete();
+
                     const whMsg = await sendWebhookMsg({
                         client: client,
                         webhookUrl: guildSetting.mainWebhookLink,
-                        content: "<a:loading:1078462597982081096>",
+                        content: waitReaction,
                         channelId: userMessage.channelId,
                         guildId: userMessage.guildId,
                         username: defaultModel,
                         avatarURL: client.user?.displayAvatarURL()
                     });
                     const content = await askGpt(client, gptModels, lastMessages, defaultVisionDistance, defaultModel);
-
-                    // await message.delete();
 
                     await editWebhookMsg(
                         whMsg.id, {
@@ -184,32 +170,21 @@ export const command = {
                 return;
             }
 
-
-
-
-            printL(
-                format(String(reaction.emoji.name) + " " + String(msg.author.username),
-                    { foreground: 'blue', background: 'white', bold: true, italic: true }) +
-
-                format(" " + event,
-                    { foreground: 'blue', background: 'red', bold: true, italic: true })
-            );
-
             const users = await reaction.users.fetch()
 
             if (users.size > 1) {
+                printL(user.tag + " " + (event == "add" ? "added" : "removed") + " " + reaction.emoji.name + " to " + msg.guildId + "/" + msg.channelId + "/" + msg.id);
+
                 if (reaction.emoji.name === '♻️') {
-                    printL('♻️');
-                    msg.react(waitReaction);
+                    msg.react(waitReactionFlat);
                     const lastMessages: Message[] = await fetchLastNMessages(reaction.message.guildId, reaction.message.channelId, defaultVisionDistance, client, "before", msg.id);
-                    // printD({ lastMessages: lastMessages[0].content });
 
                     await editWebhookMsg(
                         msg.id,
                         {
                             client: client,
                             webhookUrl: guildSetting.mainWebhookLink,
-                            content: "<a:loading:1078462597982081096>",
+                            content: waitReaction,
                             channelId: reaction.message.channelId,
                             guildId: reaction.message.guildId,
                             username: msg.author.username,
@@ -236,17 +211,16 @@ export const command = {
                 }
 
                 else if (reaction.emoji.name === '❎') {
-                    printL('❎');
                     await reaction.message.delete();
                 }
 
                 else if (reaction.emoji.name === '📣') {
-                    printL('📣 ' + msg.content);
 
-                    msg.react(waitReaction);
-                    const tts = CoquiTTS.getInstance()
+                    msg.react(waitReactionFlat);
+                    let tts = TTSFactory.createTTS();
+                    const content = msg.content.replace(/```.*?```/gs, ". код читать не буду. ");
                     tts.send({
-                        prompt: msg.content, onWav: async (data) => {
+                        prompt: content, onWav: async (data) => {
                             if (!msg.guildId) return;
                             print("редактируем " + msg.id);
                             await editWebhookMsg(
@@ -291,8 +265,6 @@ async function askGpt(client: Client, gptModels: string[], lastMessages: Message
                 return `${name}:\n«${msg.content}»`;
             }).reverse().join("\n")
     }];
-
-    // printD({ history });
 
     history.reverse();
 

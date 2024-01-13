@@ -13,7 +13,7 @@ export interface ITTS {
     send({ voice, onWav, prompt }: SendOptions): void;
     close(): void;
     outputPath: string;
-    voices: Array<string>;
+    readonly voices: readonly string[];
 }
 
 
@@ -36,6 +36,10 @@ export class CoquiTTS implements ITTS {
             CoquiTTS.instance = new CoquiTTS();
         }
         return CoquiTTS.instance;
+    }
+
+    close() {
+        this.script.close();
     }
 
     private constructor() {
@@ -79,9 +83,6 @@ export class CoquiTTS implements ITTS {
         }
     }
 
-    close() {
-        this.script.close();
-    }
 }
 
 
@@ -89,8 +90,11 @@ export class CoquiTTS implements ITTS {
 
 import { OpenAI } from 'openai';
 import { openaikey } from '../../source/botConfig.json';
-type VoicesOpenAI = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
-export const voicesOpenAI = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+
+type ReadonlyArray<T> = readonly T[];
+export const voicesOpenAI = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const;
+type VoicesOpenAI = typeof voicesOpenAI[number];
+
 
 export class OpenaiTTS implements ITTS {
 
@@ -138,8 +142,8 @@ export class OpenaiTTS implements ITTS {
 }
 
 export class TTSFactory {
-    static createTTS(voice: string): ITTS {
-        if (voicesOpenAI.includes(voice)) {
+    static createTTS(voice: string = 'nova'): ITTS {
+        if (voicesOpenAI.includes(voice as VoicesOpenAI)) {
             return OpenaiTTS.getInstance();
         } else {
             return CoquiTTS.getInstance();
