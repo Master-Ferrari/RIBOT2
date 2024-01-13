@@ -3,7 +3,7 @@ import { Events, GatewayIntentBits, ChannelType, SlashCommandBuilder, Message, G
 import * as fs from 'fs';
 // import { dateToStr } from '../lib/stuff';
 import { printL, printE, dateToStr, format } from '../../lib/consoleUtils';
-import { fetchGuild } from '../../lib/discordUtils';
+import { fetchGuild, ScriptScopes } from '../../lib/discordUtils';
 
 import { blacklist } from './gifLolList.json';
 
@@ -21,10 +21,10 @@ export const command = {
     data: {
         name: 'gif lol',
     },
-    async onStart(client: any, guilds: Array<string>) {
+    async onStart(client: any, scriptScopes: ScriptScopes) {
         client.on('messageCreate', async (message: Message) => {
 
-            if (!guilds.find(guild => guild === message.guildId)) return;
+            if (!scriptScopes.guilds.find(guild => guild === message.guildId) && !scriptScopes.global) return;
 
             const guild: Guild | undefined = await fetchGuild(client, message.guildId ?? "");
             if (!guild) return;

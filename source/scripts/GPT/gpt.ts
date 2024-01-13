@@ -1,6 +1,6 @@
 import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel, Events, User, PartialUser, PartialMessageReaction, MessageReaction } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE } from '../../lib/consoleUtils';
-import { fetchLastNMessages, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings, updateReactions } from '../../lib/discordUtils';
+import { fetchLastNMessages, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings, updateReactions, ScriptScopes } from '../../lib/discordUtils';
 import { GPT, History, ModelVersions, gptModels } from '../../lib/gptHandler';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../lib/sqlite';
@@ -84,13 +84,13 @@ export const command = {
 
     },
 
-    async onUpdate(client: Client, guildIds: string[]): Promise<void> {
+    async onUpdate(client: Client, scriptScopes: ScriptScopes): Promise<void> {
         guildSettingS = await Database.interact('database.db', async (db) => {
             return await db.getTable('guildSettings');
         });
     },
 
-    async onStart(client: Client, guildIds: string[]): Promise<void> {
+    async onStart(client: Client, scriptScopes: ScriptScopes): Promise<void> {
 
         guildSettingS = await Database.interact('database.db', async (db) => {
             return await db.getTable('guildSettings');
@@ -98,51 +98,51 @@ export const command = {
 
         client.on(Events.MessageCreate, async (userMessage) => {
             if (!userMessage.guild) return;
-            if (!guildIds.includes(userMessage.guild.id)) return;
+            if (!scriptScopes.guilds.includes(userMessage.guild.id) && !scriptScopes.global) return;
             if (!userMessage.guildId) return;
             if (userMessage.author.bot) return;
-            if (guildSettingS[userMessage.guild.id]?.gptChannelId !== null) {
-                if (guildSettingS[userMessage.guild.id]?.gptChannelId === userMessage.channelId) {
+            if (!guildSettingS[userMessage.guild.id]?.gptChannelId) return;
+            if (guildSettingS[userMessage.guild.id]?.gptChannelId !== userMessage.channelId) return;
 
-                    const channel = await fetchChannel(client, userMessage.guild.id, guildSettingS[userMessage.guild.id]?.gptChannelId) as TextChannel;
-                    if (!channel) return;
+            const channel = await fetchChannel(client, userMessage.guild.id, guildSettingS[userMessage.guild.id]?.gptChannelId) as TextChannel;
+            if (!channel) return;
 
-                    let guildSetting: string | GuildSetting = await Database.interact('database.db', async (db) => {
-                        return await getSettings(["mainWebhookLink"], db, String(userMessage.guildId));
-                    });
-                    if (typeof guildSetting === "string") {
-                        await userMessage.reply({ content: guildSetting });
-                        return;
-                    };
-
-                    const lastMessages: Message[] = await fetchLastNMessages(userMessage.guildId, userMessage.channelId, defaultVisionDistance, client);
-
-                    const whMsg = await sendWebhookMsg({
-                        client: client,
-                        webhookUrl: guildSetting.mainWebhookLink,
-                        content: waitReaction,
-                        channelId: userMessage.channelId,
-                        guildId: userMessage.guildId,
-                        username: defaultModel,
-                        avatarURL: client.user?.displayAvatarURL()
-                    });
-                    const content = await askGpt(client, gptModels, lastMessages, defaultVisionDistance, defaultModel);
-
-                    await editWebhookMsg(
-                        whMsg.id, {
-                        client: client,
-                        webhookUrl: guildSetting.mainWebhookLink,
-                        content: content,
-                        channelId: userMessage.channelId,
-                        guildId: userMessage.guildId,
-                        username: defaultModel,
-                        avatarURL: client.user?.displayAvatarURL()
-                    });
-
-                    updateReactions({ client, msg: whMsg, reactions });
-
-                }
+            let guildSetting: string | GuildSetting = await Database.interact('database.db', async (db) => {
+                return await getSettings(["mainWebhookLink"], db, String(userMessage.guildId));
+            });
+            if (typeof guildSetting === "string") {
+                await userMessage.reply({ content: guildSetting });
+                return;
             };
+
+            const lastMessages: Message[] = await fetchLastNMessages(userMessage.guildId, userMessage.channelId, defaultVisionDistance, client);
+
+            const whMsg = await sendWebhookMsg({
+                client: client,
+                webhookUrl: guildSetting.mainWebhookLink,
+                content: waitReaction,
+                channelId: userMessage.channelId,
+                guildId: userMessage.guildId,
+                username: defaultModel,
+                avatarURL: client.user?.displayAvatarURL()
+            });
+            const content = await askGpt(client, gptModels, lastMessages, defaultVisionDistance, defaultModel);
+
+            await editWebhookMsg(
+                whMsg.id, {
+                client: client,
+                webhookUrl: guildSetting.mainWebhookLink,
+                content: content,
+                channelId: userMessage.channelId,
+                guildId: userMessage.guildId,
+                username: defaultModel,
+                avatarURL: client.user?.displayAvatarURL()
+            });
+
+            updateReactions({ client, msg: whMsg, reactions });
+
+
+
         })
 
         client.on(Events.MessageReactionAdd, async (reaction, user) => {

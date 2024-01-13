@@ -2,6 +2,12 @@ import { Client, Message, TextChannel, Guild, GuildBasedChannel, WebhookClient, 
 import { print, printD, printE, printL, format, dateToStr } from '../lib/consoleUtils';
 import Database from "../lib/sqlite"
 
+
+export type ScriptScopes = {
+    global: boolean;
+    guilds: Array<string>;
+}
+
 export type GuildSetting = {
     guildName: string;
     guildId: string;

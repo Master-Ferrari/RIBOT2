@@ -93,7 +93,8 @@ export const command = {
 
         for (const script of scriptsData.scriptsList) {
             if (script.onUpdate) {
-                await script.onUpdate(client, script.guilds.map(guild => guild.info.serverId));
+                const scriptScopes = { global: script.global, guilds: script.guilds.map(guild => guild.info.serverId) };
+                await script.onUpdate(client, scriptScopes);
                 printL(script.info.comandName + ' updated');
             }
         }

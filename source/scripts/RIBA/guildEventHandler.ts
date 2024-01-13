@@ -1,6 +1,6 @@
 import { Collection, WebhookClient, EmbedBuilder, Client, GuildScheduledEvent, Message, APIMessage, Guild, TextChannel } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE } from '../../lib/consoleUtils';
-import { fetchMessage, WebhookSend, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, wait, getSettings } from '../../lib/discordUtils';
+import { fetchMessage, WebhookSend, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, wait, getSettings, ScriptScopes } from '../../lib/discordUtils';
 import Database from '../../lib/sqlite';
 
 
@@ -28,7 +28,7 @@ export const command = {
         name: 'guildEventHandler',
     },
 
-    async onStart(client: Client, guildIds: string[]): Promise<void> {
+    async onStart(client: Client, scriptScopes: ScriptScopes): Promise<void> {
         const events: string[] = [
             "guildScheduledEventCreate",
             "guildScheduledEventDelete",

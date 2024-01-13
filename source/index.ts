@@ -8,7 +8,7 @@ import { getDirectories } from './lib/fsUtils';
 import { REST } from '@discordjs/rest';
 
 import { print, printD, printE, printL, format, dateToStr } from './lib/consoleUtils';
-import { fetchMessage, fetchGuild } from './lib/discordUtils';
+import { fetchMessage, fetchGuild, ScriptScopes } from './lib/discordUtils';
 import { ribotToken, clientId } from './botConfig.json';
 import Database from './lib/sqlite';
 
@@ -92,9 +92,9 @@ type ScriptConfig = {
     global: boolean;
     guilds: Array<ServerConfig>;
     data: SlashCommandBuilder | ContextMenuCommandBuilder;
-    onIteraction?(interaction: CommandInteraction, client: Client): Promise<void>;
-    onStart?(client: Client, guilds: Array<string>): Promise<void>;
-    onUpdate?(client: Client, guilds: Array<string>): Promise<void>;
+    onIteraction?(interaction: CommandInteraction, client: Client, scriptScopes?: ScriptScopes): Promise<void>;
+    onStart?(client: Client, scriptScopes: ScriptScopes): Promise<void>;
+    onUpdate?(client: Client, scriptScopes: ScriptScopes): Promise<void>;
 };
 
 type ServerConfig = {
@@ -227,8 +227,6 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
 
     await printL(format("Deploying commands", { foreground: 'white', background: 'blue', bold: true, italic: true }));
 
-    printD({serverList},{depth:3});
-
     for (const server of serverList) {
 
         const commands: (SlashCommandBuilder | ContextMenuCommandBuilder)[] = [];
@@ -311,7 +309,8 @@ async function subscribeToInteractions(client: Client, scripts: ScriptConfig[]):
                 + dateToStr(new Date(), "timeStamp"));
 
             if (script.onIteraction) {
-                await script.onIteraction(interaction, client);
+                const scriptScopes : ScriptScopes = { global: script.global, guilds: script.guilds.map(guild => guild.info.serverId) };
+                await script.onIteraction(interaction, client, scriptScopes);
             }
         });
     }
@@ -329,8 +328,9 @@ async function launchStartupScripts(client: Client, scripts: ScriptConfig[]): Pr
     await printL(format("Launching startup scripts", { foreground: 'white', background: 'magenta', bold: true, italic: true }));
     for (const script of strtpScripts) {
         await printL(format(script.info.comandName, { foreground: 'magenta', bold: true, italic: true }));
-        if (script.onStart)
-            await script.onStart(client, script.guilds.map(guild => guild.info.serverId));
+        if (script.onStart){
+            const scriptScopes : ScriptScopes = { global: script.global, guilds: script.guilds.map(guild => guild.info.serverId) };
+            await script.onStart(client, scriptScopes);}
     }
 }
 
