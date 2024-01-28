@@ -1,9 +1,9 @@
 import { CommandInteraction, SlashCommandBuilder, Client } from 'discord.js';
 import { spawnSync } from 'child_process';
 
-import { print, printD, printL, format, dateToStr } from '../../lib/consoleUtils';
-import { findMessage } from '../../lib/discordUtils';
-import Database from '../../lib/sqlite';
+import { print, printD, printL, format, dateToStr } from '../../libs/consoleUtils';
+import { findMessage } from '../../libs/discordUtils';
+import Database from '../../libs/sqlite';
 
 import * as path from 'path';
 const scriptPath = path.join(__dirname, './dist/motherscript.js');
@@ -27,7 +27,7 @@ export const command = {
                     { name: 'True', value: 'True' }
                 )),
 
-    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
+    async onInteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
         const options: any = interaction.options;
         const full = options.getString('full') === 'True';

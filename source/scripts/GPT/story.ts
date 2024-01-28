@@ -1,9 +1,9 @@
 import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel, EmbedBuilder } from 'discord.js';
-import { print, printD, printL, format, dateToStr, printE } from '../../lib/consoleUtils';
-import { fetchLastNMessages, GuildSetting, fetchChannel, sendWebhookMsg, getSettings } from '../../lib/discordUtils';
-import { GPT, History, gptModels, ModelVersions } from '../../lib/gptHandler';
+import { print, printD, printL, format, dateToStr, printE } from '../../libs/consoleUtils';
+import { fetchLastNMessages, GuildSetting, fetchChannel, sendWebhookMsg, getSettings } from '../../libs/discordUtils';
+import { GPT, History, gptModels, ModelVersions } from '../../libs/gptHandler';
 import { openaikey } from '../../botConfig.json';
-import Database from '../../lib/sqlite';
+import Database from '../../libs/sqlite';
 
 export const command = {
 
@@ -27,7 +27,7 @@ export const command = {
                 ))
     ,
 
-    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
+    async onInteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
 
 

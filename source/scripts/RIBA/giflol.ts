@@ -2,8 +2,8 @@ import { Events, GatewayIntentBits, ChannelType, SlashCommandBuilder, Message, G
 // import { token2 } from '../config.json';
 import * as fs from 'fs';
 // import { dateToStr } from '../lib/stuff';
-import { printL, printE, dateToStr, format } from '../../lib/consoleUtils';
-import { fetchGuild, ScriptScopes } from '../../lib/discordUtils';
+import { printL, printE, dateToStr, format } from '../../libs/consoleUtils';
+import { fetchGuild, ScriptScopes } from '../../libs/discordUtils';
 
 import { blacklist } from './gifLolList.json';
 

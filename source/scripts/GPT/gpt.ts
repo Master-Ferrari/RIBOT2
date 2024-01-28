@@ -1,18 +1,23 @@
 import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel, Events, User, PartialUser, PartialMessageReaction, MessageReaction } from 'discord.js';
-import { print, printD, printL, format, dateToStr, printE } from '../../lib/consoleUtils';
-import { fetchLastNMessages, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings, updateReactions, ScriptScopes } from '../../lib/discordUtils';
-import { GPT, History, ModelVersions, gptModels } from '../../lib/gptHandler';
+import { print, printD, printL, format, dateToStr, printE } from '../../libs/consoleUtils';
+import { fetchLastNMessages, WebhookSend, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings, updateReactions, ScriptScopes } from '../../libs/discordUtils';
+import { GPT, History, ModelVersions, gptModels } from '../../libs/gptHandler';
 import { openaikey } from '../../botConfig.json';
-import Database from '../../lib/sqlite';
-import { TTSFactory } from '../../lib/tts';
+import Database from '../../libs/sqlite';
+import { TTSFactory } from '../../libs/tts';
 
 const defaultVisionDistance = 15;
 const defaultModel: ModelVersions = "gpt-4-1106-preview";
 let guildSettingS: any;
 
-const reactions = ["♻️", "❎", "📣"];
-const waitReaction = "<a:discordloading2:1194652977256992930>";
-const waitReactionFlat = "<a:discordloading:1192816519525183519>";
+const regenerateReaction = { full: "<:regenerate:1196122410626330624>", name: "regenerate" };
+const cancelReaction = { full: "<:cancel:1196070262567882802>", name: "cancel" };
+const sayReaction = { full: "<:say:1196070264165912719>", name: "say" };
+const waitReaction = { full: "<a:discordloading2:1194652977256992930>", name: "discordloading2" };
+const waitReactionFlat = { full: "<a:discordloading:1192816519525183519>", name: "discordloading" };
+
+// const reactions = ["♻️", "❎", "📣"];
+// const reactions = [regenerateReaction.full, cancelReaction.full, sayReaction.full];
 
 export const command = {
 
@@ -42,45 +47,96 @@ export const command = {
                     ...gptModels.map(model => ({ name: model, value: model })),
                 )),
 
-    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
+    async onInteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
-        const options: any = interaction.options;
-        const model = (options.getString("model") ?? defaultModel) as ModelVersions;
-        const visiondistance = options.getInteger("visiondistance") ?? 10;
+        try {
+            if (interaction.guildId === null) {
+                interaction.reply({
+                    content: 'GPT command is not available in Direct Messages. На сервере юзай крч.\n'
+                });
+                return;
+            }
+
+            const options: any = interaction.options;
+            const model = (options.getString("model") ?? defaultModel) as ModelVersions;
+            const visiondistance = options.getInteger("visiondistance") ?? 10;
 
 
-        if (interaction.guildId === null) {
-            printE('GuildId is null');
-            return;
-        };
+            if (interaction.guildId === null) {
+                printE('GuildId is null');
+                return;
+            };
 
-        const lastMessages: Message[] = await fetchLastNMessages(interaction.guildId, interaction.channelId, visiondistance, client);
+            const lastMessages: Message[] = await fetchLastNMessages(interaction.guildId, interaction.channelId, visiondistance, client);
 
-        await interaction.deferReply({ ephemeral: false });
+            await interaction.deferReply({ ephemeral: false });
 
-        let guildSetting: string | GuildSetting = await Database.interact('database.db', async (db) => {
-            return await getSettings(["mainWebhookLink"], db, String(interaction.guildId));
-        });
-        if (typeof guildSetting === "string") {
-            await interaction.editReply({ content: guildSetting });
-            return;
-        };
+            let guildSetting: string | GuildSetting = await Database.interact('database.db', async (db) => {
+                return await getSettings(["mainWebhookLink"], db, String(interaction.guildId));
+            });
+            if (typeof guildSetting === "string") {
+                await interaction.editReply({ content: guildSetting });
+                return;
+            };
 
-        const content = await askGpt(client, gptModels, lastMessages, visiondistance, model);
+            interaction.deleteReply(); //await
 
-        await interaction.deleteReply();
+            await gptWhResponse(
+                {
+                    mode: {
+                        name: "command",
+                        sendParams: {
+                            channelId: interaction.channelId,
+                            guildId: interaction.guildId,
+                            webhookUrl: guildSetting.mainWebhookLink,
+                            username: defaultModel,
+                            client: client,
+                            avatarURL: client.user?.displayAvatarURL()
+                        }
+                    },
+                    visiondistance,
+                    model
+                },
+            );
 
-        const whMsg = await sendWebhookMsg({
-            client: client,
-            webhookUrl: guildSetting.mainWebhookLink,
-            content: content,
-            channelId: interaction.channelId,
-            guildId: interaction.guildId,
-            username: model,
-            avatarURL: client.user?.displayAvatarURL()
-        });
+            // let whMsg = await sendWebhookMsg({
+            //     client: client,
+            //     webhookUrl: guildSetting.mainWebhookLink,
+            //     content: waitReaction,
+            //     channelId: interaction.channelId,
+            //     guildId: interaction.guildId,
+            //     username: defaultModel,
+            //     avatarURL: client.user?.displayAvatarURL()
+            // });
+            // updateReactions({ client, msg: whMsg, reactions: [cancelReaction.full] });
+            // try {
+            //     const content = await askGpt(client, gptModels, lastMessages, visiondistance, model);
+            //     whMsg = await editWebhookMsg(whMsg.id, {
+            //         client: client,
+            //         webhookUrl: guildSetting.mainWebhookLink,
+            //         content: content,
+            //         channelId: interaction.channelId,
+            //         guildId: interaction.guildId,
+            //         username: model,
+            //         avatarURL: client.user?.displayAvatarURL()
+            //     });
+            //     updateReactions({ client, msg: whMsg, reactions });
+            // } catch (e) {
+            //     printE(e);
+            //     whMsg = await editWebhookMsg(whMsg.id, {
+            //         client: client,
+            //         webhookUrl: guildSetting.mainWebhookLink,
+            //         content: "OpenAI API Error: " + String(e),
+            //         channelId: interaction.channelId,
+            //         guildId: interaction.guildId,
+            //         username: model,
+            //         avatarURL: client.user?.displayAvatarURL()
+            //     });
+            //     updateReactions({ client, msg: whMsg, reactions: [cancelReaction.full, regenerateReaction.full] });
+            // }
 
-        updateReactions({ client, msg: whMsg, reactions });
+        }
+        catch (e) { printE(e); }
 
     },
 
@@ -97,50 +153,73 @@ export const command = {
         });
 
         client.on(Events.MessageCreate, async (userMessage) => {
-            if (!userMessage.guild) return;
-            if (!scriptScopes.guilds.includes(userMessage.guild.id) && !scriptScopes.global) return;
-            if (!userMessage.guildId) return;
-            if (userMessage.author.bot) return;
-            if (!guildSettingS[userMessage.guild.id]?.gptChannelId) return;
-            if (guildSettingS[userMessage.guild.id]?.gptChannelId !== userMessage.channelId) return;
+            try {
+                if (!userMessage.guild) return;
+                if (!scriptScopes.guilds.includes(userMessage.guild.id) && !scriptScopes.global) return;
+                if (!userMessage.guildId) return;
+                if (userMessage.author.bot) return;
+                if (!guildSettingS[userMessage.guild.id]?.gptChannelId) return;
+                if (guildSettingS[userMessage.guild.id]?.gptChannelId !== userMessage.channelId) return;
 
-            const channel = await fetchChannel(client, userMessage.guild.id, guildSettingS[userMessage.guild.id]?.gptChannelId) as TextChannel;
-            if (!channel) return;
+                const channel = await fetchChannel(client, userMessage.guild.id, guildSettingS[userMessage.guild.id]?.gptChannelId) as TextChannel;
+                if (!channel) return;
 
-            let guildSetting: string | GuildSetting = await Database.interact('database.db', async (db) => {
-                return await getSettings(["mainWebhookLink"], db, String(userMessage.guildId));
-            });
-            if (typeof guildSetting === "string") {
-                await userMessage.reply({ content: guildSetting });
-                return;
-            };
+                let guildSetting: string | GuildSetting = await Database.interact('database.db', async (db) => {
+                    return await getSettings(["mainWebhookLink"], db, String(userMessage.guildId));
+                });
+                if (typeof guildSetting === "string") {
+                    await userMessage.reply({ content: guildSetting });
+                    return;
+                };
 
-            const lastMessages: Message[] = await fetchLastNMessages(userMessage.guildId, userMessage.channelId, defaultVisionDistance, client);
 
-            const whMsg = await sendWebhookMsg({
-                client: client,
-                webhookUrl: guildSetting.mainWebhookLink,
-                content: waitReaction,
-                channelId: userMessage.channelId,
-                guildId: userMessage.guildId,
-                username: defaultModel,
-                avatarURL: client.user?.displayAvatarURL()
-            });
-            const content = await askGpt(client, gptModels, lastMessages, defaultVisionDistance, defaultModel);
+                // const lastMessages: Message[] = await fetchLastNMessages(userMessage.guildId, userMessage.channelId, defaultVisionDistance, client);
 
-            await editWebhookMsg(
-                whMsg.id, {
-                client: client,
-                webhookUrl: guildSetting.mainWebhookLink,
-                content: content,
-                channelId: userMessage.channelId,
-                guildId: userMessage.guildId,
-                username: defaultModel,
-                avatarURL: client.user?.displayAvatarURL()
-            });
+                await gptWhResponse(
+                    {
+                        mode: {
+                            name: "auto",
+                            sendParams: {
+                                channelId: userMessage.channelId,
+                                guildId: userMessage.guildId,
+                                webhookUrl: guildSetting.mainWebhookLink,
+                                username: defaultModel,
+                                client: client,
+                                avatarURL: client.user?.displayAvatarURL()
+                            }
+                        },
+                        visiondistance: defaultVisionDistance,
+                        model: defaultModel
+                    },
+                );
 
-            updateReactions({ client, msg: whMsg, reactions });
+                // const whMsg = await sendWebhookMsg({
+                //     client: client,
+                //     webhookUrl: guildSetting.mainWebhookLink,
+                //     content: waitReaction,
+                //     channelId: userMessage.channelId,
+                //     guildId: userMessage.guildId,
+                //     username: defaultModel,
+                //     avatarURL: client.user?.displayAvatarURL()
+                // });
 
+                // updateReactions({ client, msg: whMsg, reactions: [cancelReaction.full] });
+                // const content = await askGpt(client, gptModels, lastMessages, defaultVisionDistance, defaultModel);
+                // printL(userMessage.author + format(" /gpt " + userMessage.content, { foreground: 'yellow' }) + "\n" + format("gpt: " + content, { foreground: 'blue' }));
+
+                // await editWebhookMsg(
+                //     whMsg.id, {
+                //     client: client,
+                //     webhookUrl: guildSetting.mainWebhookLink,
+                //     content: content,
+                //     channelId: userMessage.channelId,
+                //     guildId: userMessage.guildId,
+                //     username: defaultModel,
+                //     avatarURL: client.user?.displayAvatarURL()
+                // });
+
+                // updateReactions({ client, msg: whMsg, reactions });
+            } catch (e) { printE(e); }
 
 
         })
@@ -155,92 +234,226 @@ export const command = {
 
         async function onEmoji(reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser, event: 'add' | 'remove') {
 
-            if (reaction.message.guildId === null) {
-                printE('GuildId is null');
-                return;
-            };
+            try {
 
-            const msg = await fetchMessage(reaction.message.id, reaction.message.channelId, reaction.message.guildId, client);
+                if (reaction.message.guildId === null) {
+                    printE('GuildId is null');
+                    return;
+                };
 
-            const guildSetting: GuildSetting = await Database.interact('database.db', async (db) => {
-                return await db.getJSON('guildSettings', String(reaction.message.guildId));
-            });
-            const webhookId = guildSetting?.mainWebhookLink.split("/").slice(-2, -1)[0];
-            if (!msg || msg?.author.id !== webhookId) {
-                return;
-            }
+                const msg = await fetchMessage(reaction.message.id, reaction.message.channelId, reaction.message.guildId, client);
 
-            const users = await reaction.users.fetch()
+                const guildSetting: GuildSetting = await Database.interact('database.db', async (db) => {
+                    return await db.getJSON('guildSettings', String(reaction.message.guildId));
+                });
+                const webhookId = guildSetting?.mainWebhookLink.split("/").slice(-2, -1)[0];
+                if (!msg || msg?.author.id !== webhookId) {
+                    return;
+                }
 
-            if (users.size > 1) {
+                const users = await reaction.users.fetch()
+
+                if (users.size <= 1) return;
+
                 printL(user.tag + " " + (event == "add" ? "added" : "removed") + " " + reaction.emoji.name + " to " + msg.guildId + "/" + msg.channelId + "/" + msg.id);
 
-                if (reaction.emoji.name === '♻️') {
-                    msg.react(waitReactionFlat);
-                    const lastMessages: Message[] = await fetchLastNMessages(reaction.message.guildId, reaction.message.channelId, defaultVisionDistance, client, "before", msg.id);
+                if (reaction.emoji.name === regenerateReaction.name) {
 
-                    await editWebhookMsg(
-                        msg.id,
+
+
+                    await gptWhResponse(
                         {
-                            client: client,
-                            webhookUrl: guildSetting.mainWebhookLink,
-                            content: waitReaction,
-                            channelId: reaction.message.channelId,
-                            guildId: reaction.message.guildId,
-                            username: msg.author.username,
-                            avatarURL: client.user?.displayAvatarURL(),
-                            files: []
-                        });
+                            mode: {
+                                name: "regenerate",
+                                sendParams: {
+                                    channelId: reaction.message.channelId,
+                                    guildId: reaction.message.guildId,
+                                    webhookUrl: guildSetting.mainWebhookLink,
+                                    client: client,
+                                },
+                                oldMsg: msg
+                            },
+                            visiondistance: defaultVisionDistance,
+                            model: msg.author.username as ModelVersions
+                        },
+                    );
 
-                    const content = await askGpt(client, gptModels, lastMessages, defaultVisionDistance, msg.author.username as ModelVersions);
+                    // updateReactions({ client, msg, reactions: reactions.concat([waitReactionFlat]) });
 
-                    await editWebhookMsg(
-                        msg.id,
-                        {
-                            client: client,
-                            webhookUrl: guildSetting.mainWebhookLink,
-                            content: content,
-                            channelId: reaction.message.channelId,
-                            guildId: reaction.message.guildId,
-                            username: msg.author.username,
-                            avatarURL: client.user?.displayAvatarURL()
-                        });
+                    // const lastMessages: Message[] = await fetchLastNMessages(reaction.message.guildId, reaction.message.channelId, defaultVisionDistance, client, "before", msg.id);
 
-                    updateReactions({ client, msg, reactions });
+                    // const content = await askGpt(client, gptModels, lastMessages, defaultVisionDistance, msg.author.username as ModelVersions);
+
+                    // await editWebhookMsg(
+                    //     msg.id,
+                    //     {
+                    //         client: client,
+                    //         webhookUrl: guildSetting.mainWebhookLink,
+                    //         content: content,
+                    //         channelId: reaction.message.channelId,
+                    //         guildId: reaction.message.guildId,
+                    //         username: msg.author.username,
+                    //         avatarURL: client.user?.displayAvatarURL()
+                    //     });
+
+                    // updateReactions({ client, msg, reactions });
 
                 }
 
-                else if (reaction.emoji.name === '❎') {
+                else if (reaction.emoji.name === cancelReaction.name) {
                     await reaction.message.delete();
                 }
 
-                else if (reaction.emoji.name === '📣') {
+                else if (reaction.emoji.name === sayReaction.name) {
 
-                    msg.react(waitReactionFlat);
+                    // updateReactions({ client, msg, reactions: [cancelReaction.full, regenerateReaction.full, sayReaction.full, waitReactionFlat.full] });
+
                     let tts = TTSFactory.createTTS();
                     const content = msg.content.replace(/```.*?```/gs, ". код читать не буду. ");
                     tts.send({
                         prompt: content, onWav: async (data) => {
                             if (!msg.guildId) return;
                             print("редактируем " + msg.id);
-                            await editWebhookMsg(
-                                msg.id,
+
+
+                            await gptWhResponse(
                                 {
-                                    client: client,
-                                    webhookUrl: guildSetting.mainWebhookLink,
-                                    content: msg.content,
-                                    channelId: msg.channelId,
-                                    guildId: msg.guildId,
-                                    username: msg.author.username,
-                                    avatarURL: client.user?.displayAvatarURL(),
-                                    files: [tts.outputPath],
-                                }
+                                    mode: {
+                                        name: "say",    
+                                        sendParams: {
+                                            channelId: reaction.message.channelId,
+                                            guildId: msg.guildId,
+                                            webhookUrl: guildSetting.mainWebhookLink,
+                                            client: client,
+                                        },
+                                        oldMsg: msg,
+                                        file: tts.outputPath
+                                    },
+                                    visiondistance: defaultVisionDistance,
+                                    model: msg.author.username as ModelVersions
+                                },
                             );
-                            updateReactions({ client, msg, reactions });
+
+                            // await editWebhookMsg(
+                            //     msg.id,
+                            //     {
+                            //         client: client,
+                            //         webhookUrl: guildSetting.mainWebhookLink,
+                            //         content: msg.content,
+                            //         channelId: msg.channelId,
+                            //         guildId: msg.guildId,
+                            //         username: msg.author.username,
+                            //         avatarURL: client.user?.displayAvatarURL(),
+                            //         files: [tts.outputPath],
+                            //     }
+                            // );
+                            // updateReactions({ client, msg, reactions: [cancelReaction.full, regenerateReaction.full, sayReaction.full] });
                         }
                     });
+
                 }
             }
+            catch (e) {
+                printE(e);
+            }
+        }
+    }
+};
+
+
+
+
+
+
+
+
+
+
+type gptResponseParams = {
+    mode: (
+        {
+            name: "command",
+            sendParams: WebhookSend
+        } |
+        {
+            name: "auto",
+            sendParams: WebhookSend
+        } |
+        {
+            name: "regenerate",
+            oldMsg: Message,
+            sendParams: WebhookSend
+        } |
+        {
+            name: "say",
+            oldMsg: Message,
+            sendParams: WebhookSend,
+            file: string
+        }
+    ),
+    visiondistance: number,
+    model: ModelVersions
+}
+
+async function gptWhResponse(params: gptResponseParams) {
+    let msg: Message;
+    let lastMessages2: Message[];
+    //loading state
+    if (params.mode.name === "regenerate" || params.mode.name === "say") {
+        msg = params.mode.oldMsg;
+        lastMessages2 = await fetchLastNMessages(msg.guildId!, msg.channelId, defaultVisionDistance, params.mode.sendParams.client, "before", msg.id);
+        await updateReactions({
+            client: params.mode.sendParams.client, msg,
+            reactions: [cancelReaction.full, waitReactionFlat.full]
+        });
+    }
+    else {
+        msg = await sendWebhookMsg({ ...params.mode.sendParams, content: waitReaction.full });
+        lastMessages2 = await fetchLastNMessages(msg.guildId!, msg.channelId, defaultVisionDistance, params.mode.sendParams.client);
+        await updateReactions({
+            client: params.mode.sendParams.client, msg,
+            reactions: [cancelReaction.full, waitReactionFlat.full]
+        });
+    }
+    //end state
+    if (params.mode.name === "say") {
+        await editWebhookMsg(msg.id, {
+            ...params.mode.sendParams,
+            content: msg.content,
+            files: [params.mode.file]
+        });
+        updateReactions({
+            client: params.mode.sendParams.client, msg,
+            reactions: [cancelReaction.full, regenerateReaction.full, sayReaction.full]
+        });
+    }
+    else {
+        try {
+            const content = await askGpt(params.mode.sendParams.client, gptModels, lastMessages2, params.visiondistance, params.model);
+
+            await editWebhookMsg(msg.id, {
+                ...params.mode.sendParams,
+                content: content,
+
+            });
+
+            updateReactions({
+                client: params.mode.sendParams.client, msg,
+                reactions: [cancelReaction.full, regenerateReaction.full, sayReaction.full]
+            });
+        }
+        catch (e) {
+            printE(e);
+
+            await editWebhookMsg(msg.id, {
+                ...params.mode.sendParams,
+                content: "Error: " + String(e),
+            });
+
+            updateReactions({
+                client: params.mode.sendParams.client, msg: msg,
+                reactions: [cancelReaction.full, regenerateReaction.full]
+            });
         }
     }
 };
@@ -255,6 +468,7 @@ async function askGpt(client: Client, gptModels: string[], lastMessages: Message
         role: "assistant",
         content: `Это запись чата. Ты дискорд бот. Твой ник - ${client.user?.username}.
 Для кода ВСЕГДА используется форматирование: \`\`\`[язык][код]\`\`\` .
+Для перечисления используется форматирование: - [элемент перечисления][перенос строки] .
 Отвечай на последние вопросы или сообщения.\n
 Отвечай в формате JSON {"ans": "твой ответ"}!!!
 Отвечай на русском языке.
@@ -281,3 +495,14 @@ async function askGpt(client: Client, gptModels: string[], lastMessages: Message
 
     return content || 'Нет ответа';
 }
+
+
+//todo DM support
+//unify anses
+//dalle support
+//threads support
+//antispam
+//user prompt preset
+//error if no answer for long time
+
+// IS_VOICE_MESSAGE

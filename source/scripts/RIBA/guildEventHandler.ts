@@ -1,7 +1,7 @@
 import { Collection, WebhookClient, EmbedBuilder, Client, GuildScheduledEvent, Message, APIMessage, Guild, TextChannel } from 'discord.js';
-import { print, printD, printL, format, dateToStr, printE } from '../../lib/consoleUtils';
-import { fetchMessage, WebhookSend, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, wait, getSettings, ScriptScopes } from '../../lib/discordUtils';
-import Database from '../../lib/sqlite';
+import { print, printD, printL, format, dateToStr, printE } from '../../libs/consoleUtils';
+import { fetchMessage, WebhookSend, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, wait, getSettings, ScriptScopes } from '../../libs/discordUtils';
+import Database from '../../libs/sqlite';
 
 
 type EventSettings = {

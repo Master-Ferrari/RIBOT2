@@ -1,8 +1,8 @@
 import { CommandInteraction, SlashCommandBuilder, Client, ChannelType } from 'discord.js';
-import { print, printD, printE, printL, format, dateToStr } from '../../lib/consoleUtils';
-import { fetchLastNMessages, GuildSetting, fetchChannel, completeGuildSettings } from '../../lib/discordUtils';
+import { print, printD, printE, printL, format, dateToStr } from '../../libs/consoleUtils';
+import { fetchLastNMessages, GuildSetting, fetchChannel, completeGuildSettings, ScriptScopes } from '../../libs/discordUtils';
 
-import Database from '../../lib/sqlite';
+import Database from '../../libs/sqlite';
 import { loadScriptsFromDirectories } from '../../index';
 
 export const command = {
@@ -43,9 +43,9 @@ export const command = {
                 .setDescription('show server settings'))
     ,
 
-    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
+    async onInteraction(onInteraction: CommandInteraction, client: Client): Promise<void> {
 
-        const options: any = interaction.options;
+        const options: any = onInteraction.options;
 
         const botsChannel = options.getChannel("botschannel");
         const mainWebhook = options.getString("webhook");
@@ -53,38 +53,36 @@ export const command = {
         const gptchannel = options.getChannel("gptchannel");
 
         const guildSetting = await Database.interact('database.db', async (db) => {
-            const result = await db.getJSON('guildSettings', String(interaction.guildId));
+            const result = await db.getJSON('guildSettings', String(onInteraction.guildId));
 
             let guildSetting = completeGuildSettings(result as Partial<GuildSetting>);
-
 
             if (options._subcommand == "get") {
                 return guildSetting;
             }
 
             guildSetting = {
-                guildName: interaction.guild?.name || guildSetting.guildName || "",
-                guildId: interaction.guild?.id || guildSetting.guildId || "",
+                guildName: onInteraction.guild?.name || guildSetting.guildName || "",
+                guildId: onInteraction.guild?.id || guildSetting.guildId || "",
                 botChannelId: botsChannel?.id || guildSetting.botChannelId || "",
                 mainWebhookLink: mainWebhook || guildSetting.mainWebhookLink || "",
                 eventsChannelId: eventsChannel?.id || guildSetting.eventsChannelId || "",
                 gptChannelId: gptchannel?.id || guildSetting.gptChannelId || "",
             };
 
-            await db.setJSON('guildSettings', String(interaction.guildId), guildSetting);
+            await db.setJSON('guildSettings', String(onInteraction.guildId), guildSetting);
 
             return guildSetting;
         })
 
         if (options._subcommand == "get") {
-            await interaction.reply({
+            await onInteraction.reply({
                 content: `\`\`\`json\n ${JSON.stringify(guildSetting, null, 2)} \`\`\``,
                 ephemeral: true
             });
             return;
         }
-
-        await interaction.reply({
+        await onInteraction.reply({
             content: '# thank you\n## i love you',
             ephemeral: true
         });

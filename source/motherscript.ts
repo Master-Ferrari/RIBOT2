@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { printL, format } from './lib/consoleUtils';
+import { printL, format } from './libs/consoleUtils';
 import * as path from 'path';
 
 const indexPath = path.join(__dirname, './index.js');

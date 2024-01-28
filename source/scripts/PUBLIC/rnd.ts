@@ -1,5 +1,5 @@
 import { CommandInteraction, SlashCommandBuilder, Client } from 'discord.js';
-import { print, printD, printL, format, dateToStr } from '../../lib/consoleUtils';
+import { print, printD, printL, format, dateToStr } from '../../libs/consoleUtils';
 
 
 export const command = {
@@ -16,7 +16,7 @@ export const command = {
                 .setDescription('from 1 to input number')
                 .setRequired(true)),
 
-    async onIteraction(interaction: CommandInteraction, client: Client): Promise<void> {
+    async onInteraction(interaction: CommandInteraction, client: Client): Promise<void> {
 
         const options: any = interaction.options;
         const number = options.getInteger("number");

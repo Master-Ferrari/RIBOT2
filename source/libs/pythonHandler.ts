@@ -1,6 +1,6 @@
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { TextEncoder } from 'util';
-import { print, printE } from './../lib/consoleUtils';
+import { print, printE } from './consoleUtils';
 
 interface PythonCommunicatorOptions {
     onData?: (data: string) => any;

@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, CommandInteraction, CacheType, GuildEmoji } from 'discord.js';
 import * as util from 'util';
 import * as fs from 'fs/promises';
-import { print, printD, printL, format, dateToStr } from '../../lib/consoleUtils';
+import { print, printD, printL, format, dateToStr } from '../../libs/consoleUtils';
 
 export const command = {
 
@@ -13,7 +13,7 @@ export const command = {
         .setName('emojis')
         .setDescription('list of server emojis'),
 
-    async onIteraction(interaction: CommandInteraction<CacheType>): Promise<void> {
+    async onInteraction(interaction: CommandInteraction<CacheType>): Promise<void> {
         if (!interaction.guild) return;
 
         const emojis = interaction.guild.emojis.cache.map((emoji: GuildEmoji) => `${emoji.name}: ${emoji.toString()}`);

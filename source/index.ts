@@ -4,13 +4,15 @@ import { Client, GatewayIntentBits, Partials, Events, Collection, ContextMenuCom
 import * as path from 'path';
 import * as fs from 'fs';
 import { Routes } from 'discord-api-types/v9';
-import { getDirectories } from './lib/fsUtils';
+import { getDirectories } from './libs/fsUtils';
 import { REST } from '@discordjs/rest';
 
-import { print, printD, printE, printL, format, dateToStr } from './lib/consoleUtils';
-import { fetchMessage, fetchGuild, ScriptScopes } from './lib/discordUtils';
+import { ScriptBuilder } from './libs/scripts';
+import { print, printD, printE, printL, format, dateToStr } from './libs/consoleUtils';
+import { fetchMessage, fetchGuild, ScriptScopes } from './libs/discordUtils';
+import { GroupConfig, ScriptConfig, ServerConfig } from './libs/scripts';
 import { ribotToken, clientId } from './botConfig.json';
-import Database from './lib/sqlite';
+import Database from './libs/sqlite';
 
 const deployPath = path.join(__dirname, './deploy');
 const scriptsPath = path.join(__dirname, './scripts');
@@ -77,33 +79,6 @@ async function updateAnswer(client: Client): Promise<void> {
 //#region DEPLOY COMMANDS
 
 const rest = new REST({ version: '9' }).setToken(ribotToken);
-
-type GroupConfig = {
-    guilds: Record<string, string>;
-    global: boolean;
-};
-
-type ScriptConfig = {
-    info: {
-        comandName: string;
-        type: string;
-        group: string;
-    };
-    global: boolean;
-    guilds: Array<ServerConfig>;
-    data: SlashCommandBuilder | ContextMenuCommandBuilder;
-    onIteraction?(interaction: CommandInteraction, client: Client, scriptScopes?: ScriptScopes): Promise<void>;
-    onStart?(client: Client, scriptScopes: ScriptScopes): Promise<void>;
-    onUpdate?(client: Client, scriptScopes: ScriptScopes): Promise<void>;
-};
-
-type ServerConfig = {
-    info: {
-        serverName: string;
-        serverId: string;
-    }
-    scripts: Array<ScriptConfig>;
-};
 
 export async function loadScriptsFromDirectories(client: Client, directoryPath: string = scriptsPath):
     Promise<{ serverList: ServerConfig[], scriptsList: ScriptConfig[] }> {
@@ -188,8 +163,10 @@ export async function loadScriptsFromDirectories(client: Client, directoryPath: 
                 data: scriptFile.command.data
             };
 
-            if (scriptFile.command.onIteraction) {
-                scriptData.onIteraction = scriptFile.command.onIteraction;
+            printD({ scriptData });
+
+            if (scriptFile.command.onInteraction) {
+                scriptData.onInteraction = scriptFile.command.onInteraction;
             }
             if (scriptFile.command.onStart) {
                 scriptData.onStart = scriptFile.command.onStart;
@@ -239,7 +216,12 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
             continue;
         }
 
-        await printL("    Server: " + format(guildName, { foreground: 'yellow', background: server.info.serverName === "global" ? 'magenta' : undefined}));
+        if (server.info.serverName === "global")
+            await printL("    Server: " + format(guildName, { foreground: 'yellow', background: 'magenta' }) +
+                " " + format(client.guilds.cache.map(guild => guild.name).join(", "), { foreground: 'magenta', italic: true }));
+        else
+            await printL("    Server: " + format(guildName, { foreground: 'yellow' }));
+
 
         if (server.scripts.length === 0) {
             await printL('  Commands: ' + format(`no commands`, { foreground: 'red', bold: true }));
@@ -290,17 +272,17 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
 
 async function subscribeToInteractions(client: Client, scripts: ScriptConfig[]): Promise<void> {
 
-    for (const script of scripts) {
+    client.on('interactionCreate', async interaction => {
 
-        if (script.info.type !== "slash" && script.info.type !== "context") continue;
+        printD({ interaction });
 
-        client.on('interactionCreate', async interaction => {
+        for (const script of scripts) {
 
-            // printD({interaction});
+            if (!interaction.isCommand() && !interaction.isContextMenuCommand()) continue;
+            if (interaction.commandName !== script.data.name) continue;
 
-            if (!interaction.isCommand() && !interaction.isContextMenuCommand()) return;
-            if (!script.guilds.find(guild => guild.info.serverId === interaction.guildId) && interaction.guildId !== null) return;
-            if (interaction.commandName !== script.data.name) return;
+            if (script.info.type !== "slash" && script.info.type !== "context") continue;
+            if (!script.guilds.find(guild => guild.info.serverId === interaction.guildId) && !script.global) continue;
 
             await printL(interaction.user.username +
                 format(" /" + interaction.commandName
@@ -308,12 +290,14 @@ async function subscribeToInteractions(client: Client, scripts: ScriptConfig[]):
                     { foreground: 'yellow' })
                 + dateToStr(new Date(), "timeStamp"));
 
-            if (script.onIteraction) {
-                const scriptScopes : ScriptScopes = { global: script.global, guilds: script.guilds.map(guild => guild.info.serverId) };
-                await script.onIteraction(interaction, client, scriptScopes);
+            if (script.onInteraction) {
+                const scriptScopes: ScriptScopes = { global: script.global, guilds: script.guilds.map(guild => guild.info.serverId) };
+                await script.onInteraction(interaction, client, scriptScopes);
             }
-        });
-    }
+            return;
+        }
+
+    });
 }
 
 //#endregion
@@ -328,9 +312,10 @@ async function launchStartupScripts(client: Client, scripts: ScriptConfig[]): Pr
     await printL(format("Launching startup scripts", { foreground: 'white', background: 'magenta', bold: true, italic: true }));
     for (const script of strtpScripts) {
         await printL(format(script.info.comandName, { foreground: 'magenta', bold: true, italic: true }));
-        if (script.onStart){
-            const scriptScopes : ScriptScopes = { global: script.global, guilds: script.guilds.map(guild => guild.info.serverId) };
-            await script.onStart(client, scriptScopes);}
+        if (script.onStart) {
+            const scriptScopes: ScriptScopes = { global: script.global, guilds: script.guilds.map(guild => guild.info.serverId) };
+            await script.onStart(client, scriptScopes);
+        }
     }
 }
 

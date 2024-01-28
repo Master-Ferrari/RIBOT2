@@ -15,7 +15,7 @@ export const command = {
         .setName('analysis')
         .setType(ApplicationCommandType.Message),
 
-    async onIteraction(interaction: MessageContextMenuCommandInteraction, client: Client): Promise<void> {
+    async onInteraction(interaction: MessageContextMenuCommandInteraction, client: Client): Promise<void> {
 
         const targetMessage = interaction.targetMessage;
 

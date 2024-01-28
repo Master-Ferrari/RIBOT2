@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, CommandInteraction, TextChannel, ChannelType } from 'discord.js';
-import { print, printD, printL, format, dateToStr } from '../../lib/consoleUtils';
+import { print, printD, printL, format, dateToStr } from '../../libs/consoleUtils';
 
 export const command = {
 
@@ -19,7 +19,7 @@ export const command = {
                 .setDescription('The channel you want to send the message to')
                 .setRequired(true)),
 
-    async onIteraction(interaction: CommandInteraction) {
+    async onInteraction(interaction: CommandInteraction) {
         const options: any = interaction.options;
         const text = options.getString('text', true);
         const channel = options.getChannel('channel', true) as TextChannel;

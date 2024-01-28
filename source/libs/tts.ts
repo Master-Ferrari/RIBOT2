@@ -1,4 +1,4 @@
-import { print, printD, printE, format, dateToStr } from '../lib/consoleUtils';
+import { print, printD, printE, format, dateToStr } from './consoleUtils';
 import path from 'path';
 import fs from 'fs';
 
@@ -17,7 +17,7 @@ export interface ITTS {
 }
 
 
-import { PythonCommunicator } from '../lib/pythonHandler';
+import { PythonCommunicator } from './pythonHandler';
 
 export class CoquiTTS implements ITTS {
 
@@ -89,7 +89,7 @@ export class CoquiTTS implements ITTS {
 
 
 import { OpenAI } from 'openai';
-import { openaikey } from '../../source/botConfig.json';
+import { openaikey } from '../botConfig.json';
 
 type ReadonlyArray<T> = readonly T[];
 export const voicesOpenAI = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const;

@@ -51,8 +51,6 @@ class GPT {
 
         let response: ChatResponse | string = '';
 
-        // printD({requestOptions});
-
         try {
             const payload = {
                 model: this.model,
@@ -65,10 +63,6 @@ class GPT {
             const headers = { headers: { 'Authorization': `Bearer ${this.apiKey}` } };
 
             response = await axios.post(this.apiEndpoints, payload, headers) as ChatResponse;
-
-            // printD({ response }, { depth: 6 });
-
-            // response = requestOptions.format === 'json' ? response : response.data.choices[0].message.content;
 
             if (requestOptions.formatting === 'simplify') {
                 if (requestOptions.format === 'json_object') {
