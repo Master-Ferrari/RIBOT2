@@ -4,14 +4,13 @@ import { fetchLastNMessages, GuildSetting, fetchChannel, sendWebhookMsg, getSett
 import { GPT, History, gptModels, ModelVersions } from '../../libs/gptHandler';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../libs/sqlite';
+import { ScriptBuilder } from '../../libs/scripts';
 
-export const command = {
-
-    info: {
-        type: "slash",
-    },
-
-    data: new SlashCommandBuilder()
+export const script = new ScriptBuilder({
+    name: "story",
+    group: "GPT",
+}).addOnSlash({
+    slashDeployData: new SlashCommandBuilder()
         .setName('story')
         .setDescription('casts gpt msg')
         .addStringOption(option =>
@@ -24,10 +23,8 @@ export const command = {
                 .setRequired(false)
                 .addChoices(
                     ...gptModels.map(model => ({ name: model, value: model })),
-                ))
-    ,
-
-    async onInteraction(interaction: CommandInteraction, client: Client): Promise<void> {
+                )),
+    onSlash: async (interaction) => {
 
 
 
@@ -46,7 +43,7 @@ export const command = {
         await send(
             `## 0/2\n<a:loading:1078462597982081096>`,
             JSON.stringify(promt, null, 2),
-            interaction, client);
+            interaction, script.client!);
 
 
         let history: History;
@@ -61,7 +58,7 @@ export const command = {
         ans = await gpt.request(history, { format: "text", formatting: 'simplify' });
         // printD(ans);
 
-        await send(`## 1/2\n<a:loading:1078462597982081096>`, JSON.stringify(ans, null, 2), interaction, client);
+        await send(`## 1/2\n<a:loading:1078462597982081096>`, JSON.stringify(ans, null, 2), interaction, script.client!);
 
         history = [{
             role: "assistant",
@@ -84,12 +81,10 @@ export const command = {
         //     avatarURL: client.user?.displayAvatarURL()
         // });
 
-        await send(`## 2/2`, JSON.stringify(ans, null, 2), interaction, client);
+        await send(`## 2/2`, JSON.stringify(ans, null, 2), interaction, script.client!);
 
-    },
-};
-
-
+    }
+})
 import fs from 'fs/promises';
 async function send(content: string, txt: string, interaction: CommandInteraction, client: Client) {
 

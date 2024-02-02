@@ -3,7 +3,6 @@ import { print, printD, printL, format, dateToStr, printE } from '../../libs/con
 import { fetchMessage, WebhookSend, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, wait, getSettings, ScriptScopes } from '../../libs/discordUtils';
 import Database from '../../libs/sqlite';
 
-
 type EventSettings = {
     eventName: string,
     guildId: string,
@@ -11,24 +10,12 @@ type EventSettings = {
     eventMessageId: string,
 }
 
-export const command = {
-
-    info: {
-        type: "startup",
-        requiredServerSettings: [
-            {
-                type: "string",
-                name: "event-webhook-url",
-                description: "event webhook url"
-            }
-        ]
-    },
-
-    data: {
-        name: 'guildEventHandler',
-    },
-
-    async onStart(client: Client, scriptScopes: ScriptScopes): Promise<void> {
+import { ScriptBuilder } from '../../libs/scripts';
+export const script = new ScriptBuilder({
+    name: "guildEventHandler",
+    group: "private",
+}).addOnStart({
+    async onStart(): Promise<void> {
         const events: string[] = [
             "guildScheduledEventCreate",
             "guildScheduledEventDelete",
@@ -38,7 +25,7 @@ export const command = {
         ];
 
         events.forEach(event => {
-            client.on(event, async (...args: any[]) => await new Promise(async () => {
+            script.client!.on(event, async (...args: any[]) => await new Promise(async () => {
 
                 let guildScheduledEvent: GuildScheduledEvent = args[0];
 
@@ -68,8 +55,8 @@ export const command = {
                 }
 
 
-                const username = guildScheduledEvent.creator?.username ?? client.user?.username ?? 'Unknown';
-                const avatarUrl = guildScheduledEvent.creator?.displayAvatarURL() ?? client.user?.displayAvatarURL() ?? 'https://cdn.discordapp.com/embed/avatars/2.png';
+                const username = guildScheduledEvent.creator?.username ?? script.client!.user?.username ?? 'Unknown';
+                const avatarUrl = guildScheduledEvent.creator?.displayAvatarURL() ?? script.client!.user?.displayAvatarURL() ?? 'https://cdn.discordapp.com/embed/avatars/2.png';
 
 
 
@@ -87,12 +74,12 @@ export const command = {
                     guildId: guild.id,
                     username: username,
                     avatarURL: avatarUrl,
-                    client: client
+                    client: script.client!
                 };
 
                 let eventMsg: Message | undefined; // хотим
                 if (data.event === null || data.event.channelId === null) { // если нет записи
-                    const channel = await fetchChannel(client, guild.id, data.guild.eventsChannelId);
+                    const channel = await fetchChannel(script.client!, guild.id, data.guild.eventsChannelId);
                     if (!channel) { throw new Error('Channel not found'); }
 
                     eventMsg = await webhook(webhookSend); // нет записи. шлём.
@@ -100,7 +87,7 @@ export const command = {
                     await addEventToDB(guildScheduledEvent.id, guild.id, channel.id, eventMsg.id, guildScheduledEvent);
                 }
                 else { // если есть запись
-                    const message = await fetchMessage(data.event.eventMessageId, data.event.channelId, guild.id, client);
+                    const message = await fetchMessage(data.event.eventMessageId, data.event.channelId, guild.id, script.client!);
                     if (message) { eventMsg = message; } // нашли
                     else {
                         eventMsg = await webhook(webhookSend); // в записи ошибка. шлём.
@@ -167,7 +154,28 @@ ${guildScheduledEvent.description !== "" ? "\`\`\`" + guildScheduledEvent.descri
             }));
         });
     }
-}
+})
+
+// export const command = {
+
+//     info: {
+//         type: "startup",
+//         requiredServerSettings: [
+//             {
+//                 type: "string",
+//                 name: "event-webhook-url",
+//                 description: "event webhook url"
+//             }
+//         ]
+//     },
+
+//     data: {
+//         name: 'guildEventHandler',
+//     },
+
+//     async onStart(client: Client, scriptScopes: ScriptScopes): Promise<void> {
+//     }
+// }
 
 async function webhook(params: WebhookSend): Promise<Message | undefined>;
 async function webhook(messageId: string, params: WebhookSend): Promise<Message | undefined>;

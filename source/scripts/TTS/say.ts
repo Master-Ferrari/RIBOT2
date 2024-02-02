@@ -3,50 +3,57 @@ import { print, printD, printE, format, dateToStr } from '../../libs/consoleUtil
 
 import path from 'path';
 import fs from 'fs';
-
+import { ScriptBuilder } from '../../libs/scripts';
+// import { featureSwitches } from '../../botConfig.json';
 import { TTSFactory, voicesOpenAI } from '../../libs/tts';
 
-const voicesPath = path.join(__dirname, '../../../../TTS4/misc/');
-const voices = fs.readdirSync(voicesPath).map(file => path.basename(file, '.wav'));
 
-export const command = {
+type FeatureSwitches = { [key: string]: boolean };
+const featureSwitches: FeatureSwitches = require('../../botConfig.json').featureSwitches;
+const enableCoquiAI = !("CoquiAI" in featureSwitches) || featureSwitches["CoquiAI"];
+const voicesPath = enableCoquiAI ? path.join(__dirname, '../../../../TTS4/misc/') : undefined;
+const voices = enableCoquiAI ? fs.readdirSync(voicesPath!).map(file => path.basename(file, '.wav')) : [];
 
-    info: {
-        type: "slash",
-    },
+export const script = new ScriptBuilder({
+    name: "say",
+    group: "TTS",
+}).addOnSlash(
+    {
+        slashDeployData:
+            new SlashCommandBuilder()
+                .setName('say')
+                .setDescription('its ttsing')
+                .addStringOption(option =>
+                    option.setName('text')
+                        .setDescription('promt')
+                        .setRequired(true))
+                .addStringOption(option =>
+                    option.setName('voice')
+                        .setDescription('voice')
+                        .setRequired(true)
+                        .addChoices(
+                            ...(enableCoquiAI ? voices.map(voice => ({ name: "[CoquiAI] " + voice, value: voice })) : []),
+                            ...voicesOpenAI.map(voice => ({ name: "[OpenAI] " + voice, value: voice })),
+                        )),
+        onSlash: async (interaction) => {
 
-    data: new SlashCommandBuilder()
-        .setName('say')
-        .setDescription('its ttsing')
-        .addStringOption(option =>
-            option.setName('text')
-                .setDescription('promt')
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName('voice')
-                .setDescription('voice')
-                .setRequired(true)
-                .addChoices(
-                    ...voices.map(voice => ({ name: "[CoquiAI] " + voice, value: voice })),
-                    ...voicesOpenAI.map(voice => ({ name: "[OpenAI] " + voice, value: voice })),
-                )),
+            const options: any = interaction.options;
+            const prompt: string = options.getString("text");
+            const voice: string = options.getString("voice");
 
-    async onInteraction(interaction: CommandInteraction, client: Client): Promise<void> {
+            interaction.deferReply({ ephemeral: false });
 
-        const options: any = interaction.options;
-        const prompt: string = options.getString("text");
-        const voice: string = options.getString("voice");
+            let tts = TTSFactory.createTTS(voice);
 
-        interaction.deferReply({ ephemeral: false });
+            tts.send({
+                prompt, voice, onWav: (data) => {
+                    interaction.editReply({ files: [tts.outputPath] });
+                }
+            });
 
-        let tts = TTSFactory.createTTS(voice);
+            const args = JSON.stringify({ promt: prompt, voice });
 
-        tts.send({
-            prompt, voice, onWav: (data) => {
-                interaction.editReply({ files: [tts.outputPath] });
-            }
-        });
+        }
+    }
+)
 
-        const args = JSON.stringify({ promt: prompt, voice });
-    },
-};

@@ -46,7 +46,7 @@ export class CoquiTTS implements ITTS {
         this.voices = fs.readdirSync(this.voicesPath).map(file => path.basename(file, '.wav'));
         this.script = new PythonCommunicator(this.scriptsPath, {
             onData: async (data) => {
-                print(format(data, { bold: true, foreground: 'white', background: 'green' }));
+                // print(format(data, { bold: true, foreground: 'white', background: 'green' }));
                 if (data.includes('one')) {
                     const currentCall = this.callQueue.shift();
                     if (currentCall) {
@@ -57,7 +57,7 @@ export class CoquiTTS implements ITTS {
             },
             onError: (error) => {
                 printE(error);
-                close();
+                this.close();
             }
         });
         print(format('TTS initialized', { bold: true, foreground: 'white', background: 'green' }));
@@ -76,7 +76,7 @@ export class CoquiTTS implements ITTS {
             const { prompt, voice } = this.callQueue[0];
             this.isProcessing = true;
             const args = JSON.stringify({ prompt, voice });
-            printD({ args });
+            // printD({ args });
             this.script.send(args);
         } else {
             this.isProcessing = false;

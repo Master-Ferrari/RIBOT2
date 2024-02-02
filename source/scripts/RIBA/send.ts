@@ -1,13 +1,13 @@
 import { SlashCommandBuilder, CommandInteraction, TextChannel, ChannelType } from 'discord.js';
 import { print, printD, printL, format, dateToStr } from '../../libs/consoleUtils';
 
-export const command = {
 
-    info: {
-        type: "slash",
-    },
-
-    data: new SlashCommandBuilder()
+import { ScriptBuilder } from '../../libs/scripts';
+export const script = new ScriptBuilder({
+    name: "send",
+    group: "private",
+}).addOnSlash({
+    slashDeployData: new SlashCommandBuilder()
         .setName('send')
         .setDescription('Sends a specified message to a specified channel')
         .addStringOption(option =>
@@ -18,12 +18,11 @@ export const command = {
             option.setName('channel')
                 .setDescription('The channel you want to send the message to')
                 .setRequired(true)),
-
-    async onInteraction(interaction: CommandInteraction) {
+    onSlash: async (interaction) => {
         const options: any = interaction.options;
         const text = options.getString('text', true);
         const channel = options.getChannel('channel', true) as TextChannel;
-        
+
         if (channel?.type === ChannelType.GuildText) {
             const message = await channel.send(text);
             await interaction.reply({
@@ -36,5 +35,5 @@ export const command = {
                 ephemeral: true
             });
         }
-    },
-};
+    }
+});

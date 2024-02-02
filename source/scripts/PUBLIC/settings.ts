@@ -5,13 +5,13 @@ import { fetchLastNMessages, GuildSetting, fetchChannel, completeGuildSettings, 
 import Database from '../../libs/sqlite';
 import { loadScriptsFromDirectories } from '../../index';
 
-export const command = {
+import { ScriptBuilder } from '../../libs/scripts';
 
-    info: {
-        type: "slash",
-    },
-
-    data: new SlashCommandBuilder()
+export const script = new ScriptBuilder({
+    name: "settings",
+    group: "basa",
+}).addOnSlash({
+    slashDeployData: new SlashCommandBuilder()
         .setName('settings')
         .setDescription('server settings')
         .addSubcommand(subcommand =>
@@ -41,11 +41,11 @@ export const command = {
             subcommand
                 .setName('get')
                 .setDescription('show server settings'))
-    ,
+        .setName('settings')
+        .setDescription('server settings'),
+    onSlash: async (interaction) => {
 
-    async onInteraction(onInteraction: CommandInteraction, client: Client): Promise<void> {
-
-        const options: any = onInteraction.options;
+        const options: any = interaction.options;
 
         const botsChannel = options.getChannel("botschannel");
         const mainWebhook = options.getString("webhook");
@@ -53,7 +53,7 @@ export const command = {
         const gptchannel = options.getChannel("gptchannel");
 
         const guildSetting = await Database.interact('database.db', async (db) => {
-            const result = await db.getJSON('guildSettings', String(onInteraction.guildId));
+            const result = await db.getJSON('guildSettings', String(interaction.guildId));
 
             let guildSetting = completeGuildSettings(result as Partial<GuildSetting>);
 
@@ -62,39 +62,42 @@ export const command = {
             }
 
             guildSetting = {
-                guildName: onInteraction.guild?.name || guildSetting.guildName || "",
-                guildId: onInteraction.guild?.id || guildSetting.guildId || "",
+                guildName: interaction.guild?.name || guildSetting.guildName || "",
+                guildId: interaction.guild?.id || guildSetting.guildId || "",
                 botChannelId: botsChannel?.id || guildSetting.botChannelId || "",
                 mainWebhookLink: mainWebhook || guildSetting.mainWebhookLink || "",
                 eventsChannelId: eventsChannel?.id || guildSetting.eventsChannelId || "",
                 gptChannelId: gptchannel?.id || guildSetting.gptChannelId || "",
             };
 
-            await db.setJSON('guildSettings', String(onInteraction.guildId), guildSetting);
+            await db.setJSON('guildSettings', String(interaction.guildId), guildSetting);
 
             return guildSetting;
         })
 
         if (options._subcommand == "get") {
-            await onInteraction.reply({
+            await interaction.reply({
                 content: `\`\`\`json\n ${JSON.stringify(guildSetting, null, 2)} \`\`\``,
                 ephemeral: true
             });
             return;
         }
-        await onInteraction.reply({
+        await interaction.reply({
             content: '# thank you\n## i love you',
             ephemeral: true
         });
 
-        const scriptsData = await loadScriptsFromDirectories(client);
+        const scriptsData = await loadScriptsFromDirectories();
+
+
+        await printL(format(`Update!`, { foreground: 'white', background: 'yellow', bold: true, italic: true }));
 
         for (const script of scriptsData.scriptsList) {
-            if (script.onUpdate) {
-                const scriptScopes = { global: script.global, guilds: script.guilds.map(guild => guild.info.serverId) };
-                await script.onUpdate(client, scriptScopes);
-                printL(script.info.comandName + ' updated');
+            if (script.isUpdate()) {
+                // const scriptScopes = { global: script.isGlobal, guilds: script.guilds.map(guild => guild.info.serverId) };
+                await script.onUpdate();
+                await printL(script.name + ' updated');
             }
         }
-    },
-};
+    }
+});

@@ -10,12 +10,12 @@ const scriptPath = path.join(__dirname, './dist/motherscript.js');
 
 const db = new Database('database.db');
 
-export const command = {
-    info: {
-        type: "slash",
-    },
-
-    data: new SlashCommandBuilder()
+import { ScriptBuilder } from '../../libs/scripts';
+export const script = new ScriptBuilder({
+    name: "update",
+    group: "private",
+}).addOnSlash({
+    slashDeployData: new SlashCommandBuilder()
         .setName('update')
         .setDescription('restarting the bot and deploying commands')
         .addStringOption(option =>
@@ -26,8 +26,7 @@ export const command = {
                 .addChoices(
                     { name: 'True', value: 'True' }
                 )),
-
-    async onInteraction(interaction: CommandInteraction, client: Client): Promise<void> {
+    onSlash: async (interaction) => {
 
         const options: any = interaction.options;
         const full = options.getString('full') === 'True';
@@ -37,8 +36,8 @@ export const command = {
         const msgText = 'Restarting...';
         await interaction.reply(msgText);
 
-        const user: any = client.user;
-        const reply: any = await findMessage(interaction.channelId, user.id, msgText, client);
+        const user: any = script.client!.user;
+        const reply: any = await findMessage(interaction.channelId, user.id, msgText, script.client!);
 
         await db.init();
         await db.setJSON('global', 'lastUpdateCommand',
@@ -56,5 +55,5 @@ export const command = {
 
 
         process.exit();
-    },
-};
+    }
+});

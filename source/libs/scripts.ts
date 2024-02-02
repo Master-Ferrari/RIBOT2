@@ -1,243 +1,294 @@
-import { Client, ContextMenuCommandBuilder, MessageContextMenuCommandInteraction, SlashCommandBuilder, CommandInteraction, ButtonInteraction, Message, BitFieldResolvable, GatewayIntentsString } from 'discord.js';
-import { ScriptScopes } from './discordUtils';
+import { Client, Interaction, ContextMenuCommandBuilder, Partials, MessageContextMenuCommandInteraction, UserContextMenuCommandInteraction, SlashCommandBuilder, CommandInteraction, ButtonInteraction, Message, BitFieldResolvable, GatewayIntentsString, GatewayIntentBits } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE } from './consoleUtils';
 
-
-export type GroupConfig = {
-    guilds: Record<string, string>;
-    global: boolean;
-};
-
-export type ScriptConfig = {
-    info: {
-        comandName: string;
-        type: string;
-        group: string;
-    };
-    global: boolean;
-    guilds: Array<ServerConfig>;
-    data: SlashCommandBuilder | ContextMenuCommandBuilder;
-    onInteraction?(interaction: CommandInteraction, client: Client, scriptScopes?: ScriptScopes): Promise<void>;
-    onStart?(client: Client, scriptScopes: ScriptScopes): Promise<void>;
-    onUpdate?(client: Client, scriptScopes: ScriptScopes): Promise<void>;
-};
-
-
 export type ServerConfig = {
-    info: {
-        serverName: string;
-        serverId: string;
-    }
-    scripts: Array<ScriptConfig>;
+    serverName: string;
+    serverId: string;
+    scripts: Array<ScriptBuilder>;
 };
-
-
-///////////////////////////
-
-type OnSlashOptions = {
-    interaction: CommandInteraction,
-}
-
-type OnContextOptions = {
-    interaction: MessageContextMenuCommandInteraction,
-}
-
-type onMessageOptions = {
-    message: Message,
-}
-
-type onStartOptions = {
-}
-
-type onButtonOptions = {
-    interaction: ButtonInteraction,
-}
-
-type onUpdateOptions = {
-}
 
 export class ScriptBuilder {
 
+    private _enabled: boolean = true;
+    public get enabled() { return this._enabled; }
+
     private _name: string;
     private _group: string;
-
-    private _scriptScopes?: ScriptScopes;
-    private _intents?: BitFieldResolvable<GatewayIntentsString, number>;
-    private _client?: Client;
-
-    private _onSlash?: (options: OnSlashOptions) => Promise<void>;
-    private _slashDeployData?: Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
-    private _isSlash: boolean = false;
-
-    private _onContext?: (options: OnContextOptions) => Promise<void>;
-    private _contextDeployData?: ContextMenuCommandBuilder;
-    private _isContext: boolean = false;
-
-    private _onStart?: (options: onStartOptions) => Promise<void>;
-    private _isStart: boolean = false;
-
-    private _onMessage?: (options: onMessageOptions) => Promise<void>;
-    private _isChat: boolean = false;
-
-    private _onButton?: (options: onButtonOptions) => Promise<void>;
-    private _isButton: boolean = false;
-
-    private _onUpdate?: (options: onUpdateOptions) => Promise<void>;
-    private _isUpdate: boolean = false;
-
-
     public get name() { return this._name; }
     public get group() { return this._group; }
-    public get scriptScopes() { return this._scriptScopes; }
-    public get intents() { return this._intents; }
-    public get client() { return this._client; }
-    public get onSlash() { return this._onSlash; }
-    public get slashDeployData() { return this._slashDeployData; }
-    public get isSlash() { return this._isSlash; }
-    public get onContext() { return this._onContext; }
-    public get contextDeployData() { return this._contextDeployData; }
-    public get isContext() { return this._isContext; }
-    public get onStart() { return this._onStart; }
-    public get isStart() { return this._isStart; }
-    public get onMessage() { return this._onMessage; }
-    public get isChat() { return this._isChat; }
-    public get onButton() { return this._onButton; }
-    public get isButton() { return this._isButton; }
-    public get onUpdate() { return this._onUpdate; }
-    public get isUpdate() { return this._isUpdate; }
 
+    private _intents: Set<GatewayIntentsString | number> = new Set([]);
+    private _partials: Set<Partials> = new Set([]);
+    private _client?: Client;
+    // public get intents() {
+    //     return { intents: this._intents, partials: this._partials }
+    // }
+    public get intents() { return this._intents; }
+    public get partials() { return this._partials; }
+    public get client() { return this._client; }
+
+    private _guilds?: ServerConfig[] | "global";
+    private _isGlobal?: boolean;
+    private _usersList?: {
+        whitelist: string[] | null;
+        blacklist: string[] | null;
+    };
+    public get guilds() { return this._guilds; }
+    public get isGlobal() { return this._isGlobal; }
+    public get usersList() { return this._usersList; }
+
+    //slash
+    private _onSlash?: (interaction: CommandInteraction) => Promise<void>;
+    private _slashDeployData?: SlashCommandBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
+    public get onSlash() {
+        if (!this._onSlash) return;
+        return async (interaction: Interaction) => {
+            if (!interaction.isCommand()) return;
+            if (interaction.commandName !== this.name) return;
+
+            const username = interaction.user.username;
+            const commandName = interaction.commandName;
+            const options = interaction.options.data.map(option => (` ${option.name}:${option.value}`)).join(" ");
+            await this.interactionLog(username, commandName, options);
+
+            if (!this.checkSetup()) return;
+            if (this.guilds !== "global" && !this.guilds!.map(guild => guild.serverId).includes(interaction.guildId!)) return;
+            const script = this as ScriptBuilder & { client: Client, guilds: ServerConfig[] | "global" };
+            await this._onSlash!(interaction);
+        }
+    }
+    public get slashDeployData() { return this._slashDeployData; }
+    public isSlash(): this is ScriptBuilder & {
+        onSlash: (interaction: CommandInteraction) => Promise<void>,
+        slashDeployData: SlashCommandBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">
+    } {
+        return this.onSlash !== undefined;
+    }
+    // context
+    private _onContext?: (interaction: (MessageContextMenuCommandInteraction | UserContextMenuCommandInteraction)) => Promise<void>;
+    private _contextDeployData?: ContextMenuCommandBuilder;
+    public get onContext() {
+        if (!this._onContext) return undefined;
+        return async (interaction: Interaction) => {
+            if (!interaction.isContextMenuCommand()) return;
+            if (interaction.commandName !== this.name) return;
+
+            const username = interaction.user.username;
+            const commandName = interaction.commandName;
+            const options = interaction.options.data.map(option => (` ${option.name}:${option.value}`)).join(" ");
+            await this.interactionLog(username, commandName, options);
+
+            if (!this.checkSetup()) return;
+            if (this.guilds !== "global" && !this.guilds!.map(guild => guild.serverId).includes(interaction.guildId!)) return;
+            await this._onContext!(interaction);
+        }
+    }
+    public get contextDeployData() { return this._contextDeployData; }
+    public isContext(): this is ScriptBuilder & {
+        onContext: (interaction: (MessageContextMenuCommandInteraction | UserContextMenuCommandInteraction)) => Promise<void>,
+        contextDeployData: ContextMenuCommandBuilder
+    } {
+        return this.onContext !== undefined;
+    }
+    ///start
+    private _onStart?: () => Promise<void>;
+    public get onStart() { return this._onStart; }
+    public isStart(): this is ScriptBuilder & { onStart: () => Promise<void> } {
+        return this.onStart !== undefined;
+    }
+    //message
+    private _onMessage?: (message: Message) => Promise<void>;
+    public get onMessage() {
+        if (!this._onMessage) return undefined;
+        return async (message: Message) => {
+            if (!this.checkSetup()) return;
+            if (this.guilds !== "global" && !this.guilds!.map(guild => guild.serverId).includes(message.guildId!)) return;
+            await this._onMessage!(message);
+        };
+    }
+    public isMessage(): this is ScriptBuilder & { onMessage: (message: Message) => Promise<void> } {
+        return this.onMessage !== undefined;
+    }
+    //button
+    private _onButton?: (interaction: ButtonInteraction) => Promise<void>;
+    private _isValidCustomId?: (customId: string) => Promise<boolean>;
+    public get onButton() {
+        if (!this._onButton) return undefined;
+        return async (interaction: Interaction) => {
+            if (!interaction.isButton()) return;
+            if (!this.isValidCustomId!(interaction.customId)) return;
+
+            const username = interaction.user.username;
+            const commandName = "button/";
+            const options = interaction.customId;
+            await this.interactionLog(username, commandName, options);
+
+            if (!this.checkSetup()) return;
+            await this._onButton!(interaction);
+        }
+    }
+    public get isValidCustomId() { return this._isValidCustomId; }
+    public isButton(): this is ScriptBuilder & {
+        onButton: (interaction: ButtonInteraction) => Promise<void>,
+        isValidCustomId: (customId: string) => Promise<boolean>
+    } {
+        return this.onButton !== undefined;
+    }
+    //update
+    private _onUpdate?: () => Promise<void>;
+    public get onUpdate() { return this._onUpdate; }
+    public isUpdate(): this is ScriptBuilder & { onUpdate: () => Promise<void> } {
+        return this.onUpdate !== undefined;
+    }
+    //todo: events events
+    //todo: autocomlpite
+    //todo: reactions
+    //todo: multiple slash events
+    //todo: userContext and messageContext definition
+    //todo: remove interactionHandler
+
+    private _isSetupScopes: boolean = false;
+    private _isSetupClient: boolean = false;
 
     constructor(
         options: {
             name: string,
             group: string,
-            intents?: BitFieldResolvable<GatewayIntentsString, number>
+            intents?: Set<GatewayIntentsString | number>,
+            partials?: Set<Partials>
         }
     ) {
         this._name = options.name;
         this._group = options.group;
-        this._intents = options.intents;
+        this._intents = options.intents ?? new Set();
+        this._partials = options.partials ?? new Set();
     }
 
-    public setup(
-        client: Client,
-        scopes: ScriptScopes
-    ) {
-        if (scopes.global && scopes.guilds.length > 0) {
-            printE('Global script cannot be used in guilds');
+    public setupScopes(
+        enabled: boolean,
+        guilds: ServerConfig[] | "global",
+        usersList?: {
+            whitelist: string[] | null;
+            blacklist: string[] | null;
         }
-        this._client = client;
-        this._scriptScopes = scopes;
+    ) {
+        this._enabled = enabled;
+        this._isGlobal = guilds === "global";
+        this._guilds = guilds;
+        this._usersList = usersList ?? { whitelist: null, blacklist: null };
+        this._isSetupScopes = true;
         return this;
     }
 
-    private checkScopes(): boolean {
-        if (!this._client || !this._scriptScopes) {
-            printE('Client or script scopes are not set');
-            return false;
+    public setupClient(client: Client) {
+        this._client = client;
+        this._isSetupClient = true;
+    }
+
+    public isSetup(): this is ScriptBuilder & { client: Client, guilds: ServerConfig[] | "global" } {
+        return this._isSetupScopes && this._isSetupClient;
+    }
+    private checkSetup(): boolean {
+        if (!this.isSetup()) {
+            printE('Client or guilds not set. ' + this._name);
+            throw new Error();
         };
         return true;
     }
 
     public addOnSlash(
-        slashDeployData: Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">,
-        onSlash: (options: OnSlashOptions) => Promise<void>
+        options: {
+            slashDeployData: SlashCommandBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">,
+            onSlash: (interaction: CommandInteraction) => Promise<void>
+        }
     ) {
-        this._onSlash = async (options: OnSlashOptions): Promise<void> => {
-            if (!this.checkScopes()) return;
-            if (!this._scriptScopes!.global && !this._scriptScopes!.guilds.includes(options.interaction.guildId!)) return;
-            if (this._name !== options.interaction.commandName) {
-                printE('Slash command name does not match script name');
-                return;
-            }
-            await onSlash(options);
-        };
-        this._slashDeployData = slashDeployData;
-        this._isSlash = true;
+        if (this._name !== options.slashDeployData.name) {
+            printE('Slash command name does not match script name. ' + this._name + " != " + options.slashDeployData.name);
+            throw new Error();
+        }
+        this._onSlash = options.onSlash;
+        this._slashDeployData = options.slashDeployData;
         return this;
     }
 
     public addOnContext(
-        contextDeployData: ContextMenuCommandBuilder,
-        onContext: (options: OnContextOptions) => Promise<void>
+        options: {
+            contextDeployData: ContextMenuCommandBuilder,
+            onContext: (interaction: (MessageContextMenuCommandInteraction | UserContextMenuCommandInteraction)) => Promise<void>
+        }
     ) {
-        this._onContext = async (options: OnContextOptions): Promise<void> => {
-            if (!this.checkScopes()) return;
-            if (!this._scriptScopes!.global && !this._scriptScopes!.guilds.includes(options.interaction.guildId!)) return;
-            if (this._name !== options.interaction.commandName) {
-                printE('Context command name does not match script name');
-                return;
-            }
-            await onContext(options);
-        };
-        this._contextDeployData = contextDeployData;
-        this._isContext = true;
+        if (this._name !== options.contextDeployData.name) {
+            printE('Context command name does not match script name. ' + this._name + " != " + options.contextDeployData.name);
+            return this;
+        }
+        this._onContext = options.onContext;
+        this._contextDeployData = options.contextDeployData;
         return this;
     }
 
     public addOnStart(
-        onStart: (options: onStartOptions) => Promise<void>
+        options: {
+            onStart: () => Promise<void>
+        }
     ) {
-        this._onStart = async (options: onStartOptions): Promise<void> => {
-            if (!this.checkScopes()) return;
-            await onStart(options);
+        this._onStart = async (): Promise<void> => {
+            if (!this.checkSetup()) return;
+            await options.onStart();
         };
-        this._isStart = true;
         return this;
     }
 
     public addOnMessage(
-        onMessage: (options: onMessageOptions) => Promise<void>
+        options: {
+            onMessage: (message: Message) => Promise<void>
+        }
     ) {
-        this._onMessage = async (options: onMessageOptions): Promise<void> => {
-            if (!this.checkScopes()) return;
-            if (!this._scriptScopes!.global && !this._scriptScopes!.guilds.includes(options.message.guildId!)) return;
-            await onMessage(options);
-        };
-        this._isChat = true;
+        this._onMessage = options.onMessage;
         return this;
     }
 
     public addOnButton(
-        onButton: (options: onButtonOptions) => Promise<void>
+        options: {
+            isValidCustomId: (customId: string) => Promise<boolean>,
+            onButton: (interaction: ButtonInteraction) => Promise<void>,
+        }
     ) {
-        this._onButton = async (options: onButtonOptions): Promise<void> => {
-            if (!this.checkScopes()) return;
-            await onButton(options);
-        };
-        this._isButton = true;
+        this._onButton = options.onButton;
+        this._isValidCustomId = options.isValidCustomId;
         return this;
     }
 
     public addOnUpdate(
-        onUpdate: (options: onUpdateOptions) => Promise<void>
+        options: {
+            onUpdate: () => Promise<void>
+        }
     ) {
-        this._onUpdate = async (options: onUpdateOptions): Promise<void> => {
-            if (!this.checkScopes()) return;
-            await onUpdate(options);
+        this._onUpdate = async (): Promise<void> => {
+            if (!this.checkSetup()) return;
+            await options.onUpdate();
         };
-        this._isUpdate = true;
         return this;
     }
+
+    private async interactionLog(username: string, commandName: string, options: string) {
+        await printL(
+            username + format(
+                " /" + commandName + options
+                , { foreground: 'yellow' }
+            ) + dateToStr(new Date(), "timeStamp"));
+    }
+
+    public interactionHandler(
+        interaction: Interaction
+    ) {
+        if (this.onButton)
+            this.onButton(interaction);
+        if (this.onSlash)
+            this.onSlash(interaction);
+        if (this.onContext)
+            this.onContext(interaction);
+    }
+
+
+
 }
-
-
-
-export const script = new ScriptBuilder({
-    name: "testScript",
-    group: "testGroup"
-}).addOnButton(
-    async (options: onButtonOptions) => {
-
-    }
-).addOnStart(
-    async () => {
-        // script.client
-    }
-);
-
-if (script.onStart)
-    script.onStart({});
-
-if (script.isSlash)
-    script.onStart!({});

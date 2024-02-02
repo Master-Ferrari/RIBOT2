@@ -5,6 +5,7 @@ import { GPT, History, ModelVersions, gptModels } from '../../libs/gptHandler';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../libs/sqlite';
 import { TTSFactory } from '../../libs/tts';
+import { ScriptBuilder } from '../../libs/scripts';
 
 const defaultVisionDistance = 15;
 const defaultModel: ModelVersions = "gpt-4-1106-preview";
@@ -19,13 +20,12 @@ const waitReactionFlat = { full: "<a:discordloading:1192816519525183519>", name:
 // const reactions = ["♻️", "❎", "📣"];
 // const reactions = [regenerateReaction.full, cancelReaction.full, sayReaction.full];
 
-export const command = {
 
-    info: {
-        type: "slash",
-    },
-
-    data: new SlashCommandBuilder()
+export const script = new ScriptBuilder({
+    name: "gpt",
+    group: "GPT",
+}).addOnSlash({
+    slashDeployData: new SlashCommandBuilder()
         .setName('gpt')
         .setDescription('casts gpt msg')
         .addIntegerOption(option =>
@@ -46,8 +46,7 @@ export const command = {
                 .addChoices(
                     ...gptModels.map(model => ({ name: model, value: model })),
                 )),
-
-    async onInteraction(interaction: CommandInteraction, client: Client): Promise<void> {
+    onSlash: async (interaction) => {
 
         try {
             if (interaction.guildId === null) {
@@ -67,7 +66,7 @@ export const command = {
                 return;
             };
 
-            const lastMessages: Message[] = await fetchLastNMessages(interaction.guildId, interaction.channelId, visiondistance, client);
+            const lastMessages: Message[] = await fetchLastNMessages(interaction.guildId, interaction.channelId, visiondistance, script.client!);
 
             await interaction.deferReply({ ephemeral: false });
 
@@ -90,8 +89,8 @@ export const command = {
                             guildId: interaction.guildId,
                             webhookUrl: guildSetting.mainWebhookLink,
                             username: defaultModel,
-                            client: client,
-                            avatarURL: client.user?.displayAvatarURL()
+                            client: script.client!,
+                            avatarURL: script.client!.user?.displayAvatarURL()
                         }
                     },
                     visiondistance,
@@ -137,31 +136,31 @@ export const command = {
 
         }
         catch (e) { printE(e); }
-
-    },
-
-    async onUpdate(client: Client, scriptScopes: ScriptScopes): Promise<void> {
+    }
+}).addOnUpdate({
+    onUpdate: async () => {
         guildSettingS = await Database.interact('database.db', async (db) => {
             return await db.getTable('guildSettings');
         });
-    },
-
-    async onStart(client: Client, scriptScopes: ScriptScopes): Promise<void> {
+    }
+}).addOnStart({
+    onStart: async () => {
 
         guildSettingS = await Database.interact('database.db', async (db) => {
             return await db.getTable('guildSettings');
         });
 
-        client.on(Events.MessageCreate, async (userMessage) => {
+        script.client!.on(Events.MessageCreate, async (userMessage) => {
             try {
                 if (!userMessage.guild) return;
-                if (!scriptScopes.guilds.includes(userMessage.guild.id) && !scriptScopes.global) return;
+                // if (!scriptScopes.guilds.includes(userMessage.guild.id) && !scriptScopes.global) return;\
+                if (script.guilds !== "global" && !script.guilds!.map(guild => guild.serverId).includes(userMessage.guild.id)) return;
                 if (!userMessage.guildId) return;
                 if (userMessage.author.bot) return;
                 if (!guildSettingS[userMessage.guild.id]?.gptChannelId) return;
                 if (guildSettingS[userMessage.guild.id]?.gptChannelId !== userMessage.channelId) return;
 
-                const channel = await fetchChannel(client, userMessage.guild.id, guildSettingS[userMessage.guild.id]?.gptChannelId) as TextChannel;
+                const channel = await fetchChannel(script.client!, userMessage.guild.id, guildSettingS[userMessage.guild.id]?.gptChannelId) as TextChannel;
                 if (!channel) return;
 
                 let guildSetting: string | GuildSetting = await Database.interact('database.db', async (db) => {
@@ -184,8 +183,8 @@ export const command = {
                                 guildId: userMessage.guildId,
                                 webhookUrl: guildSetting.mainWebhookLink,
                                 username: defaultModel,
-                                client: client,
-                                avatarURL: client.user?.displayAvatarURL()
+                                client: script.client!,
+                                avatarURL: script.client!.user?.displayAvatarURL()
                             }
                         },
                         visiondistance: defaultVisionDistance,
@@ -224,11 +223,11 @@ export const command = {
 
         })
 
-        client.on(Events.MessageReactionAdd, async (reaction, user) => {
+        script.client!.on(Events.MessageReactionAdd, async (reaction, user) => {
             await onEmoji(reaction, user, 'add');
         });
 
-        client.on(Events.MessageReactionRemove, async (reaction, user) => {
+        script.client!.on(Events.MessageReactionRemove, async (reaction, user) => {
             await onEmoji(reaction, user, 'remove');
         });
 
@@ -241,7 +240,7 @@ export const command = {
                     return;
                 };
 
-                const msg = await fetchMessage(reaction.message.id, reaction.message.channelId, reaction.message.guildId, client);
+                const msg = await fetchMessage(reaction.message.id, reaction.message.channelId, reaction.message.guildId, script.client!);
 
                 const guildSetting: GuildSetting = await Database.interact('database.db', async (db) => {
                     return await db.getJSON('guildSettings', String(reaction.message.guildId));
@@ -269,7 +268,7 @@ export const command = {
                                     channelId: reaction.message.channelId,
                                     guildId: reaction.message.guildId,
                                     webhookUrl: guildSetting.mainWebhookLink,
-                                    client: client,
+                                    client: script.client!,
                                 },
                                 oldMsg: msg
                             },
@@ -319,12 +318,12 @@ export const command = {
                             await gptWhResponse(
                                 {
                                     mode: {
-                                        name: "say",    
+                                        name: "say",
                                         sendParams: {
                                             channelId: reaction.message.channelId,
                                             guildId: msg.guildId,
                                             webhookUrl: guildSetting.mainWebhookLink,
-                                            client: client,
+                                            client: script.client!,
                                         },
                                         oldMsg: msg,
                                         file: tts.outputPath
@@ -357,16 +356,9 @@ export const command = {
                 printE(e);
             }
         }
+
     }
-};
-
-
-
-
-
-
-
-
+})
 
 
 type gptResponseParams = {
@@ -504,5 +496,6 @@ async function askGpt(client: Client, gptModels: string[], lastMessages: Message
 //antispam
 //user prompt preset
 //error if no answer for long time
+//common path to database.db
 
 // IS_VOICE_MESSAGE

@@ -3,17 +3,15 @@ import * as util from 'util';
 import * as fs from 'fs/promises';
 import { print, printD, printL, format, dateToStr } from '../../libs/consoleUtils';
 
-export const command = {
-
-    info: {
-        type: "slash",
-    },
-
-    data: new SlashCommandBuilder()
+import { ScriptBuilder } from '../../libs/scripts';
+export const script = new ScriptBuilder({
+    name: "emojis",
+    group: "private",
+}).addOnSlash({
+    slashDeployData: new SlashCommandBuilder()
         .setName('emojis')
         .setDescription('list of server emojis'),
-
-    async onInteraction(interaction: CommandInteraction<CacheType>): Promise<void> {
+    onSlash: async (interaction) => {
         if (!interaction.guild) return;
 
         const emojis = interaction.guild.emojis.cache.map((emoji: GuildEmoji) => `${emoji.name}: ${emoji.toString()}`);
@@ -24,6 +22,6 @@ export const command = {
         const filename = 'output.js';
         await fs.writeFile(filename, output, 'utf8');
         await interaction.reply({ files: [filename] });
-        await fs.unlink(filename); 
-    },
-};
+        await fs.unlink(filename);
+    }
+});

@@ -2,7 +2,7 @@ import { Events, GatewayIntentBits, ChannelType, SlashCommandBuilder, Message, G
 // import { token2 } from '../config.json';
 import * as fs from 'fs';
 // import { dateToStr } from '../lib/stuff';
-import { printL, printE, dateToStr, format } from '../../libs/consoleUtils';
+import { printL, print, printE, dateToStr, format } from '../../libs/consoleUtils';
 import { fetchGuild, ScriptScopes } from '../../libs/discordUtils';
 
 import { blacklist } from './gifLolList.json';
@@ -13,79 +13,85 @@ interface BlackList {
     [key: string]: string;
 }
 
-export const command = {
-
-    info: {
-        type: "startup",
-    },
-    data: {
-        name: 'gif lol',
-    },
-    async onStart(client: any, scriptScopes: ScriptScopes) {
-        client.on('messageCreate', async (message: Message) => {
-
-            if (!scriptScopes.guilds.find(guild => guild === message.guildId) && !scriptScopes.global) return;
-
-            const guild: Guild | undefined = await fetchGuild(client, message.guildId ?? "");
-            if (!guild) return;
 
 
-            let msgContent = "";
-            if (message.attachments.size > 0) {
-                message.attachments.forEach((attachment: any) => {
-                    msgContent += attachment.name;
-                });
-            }
-            msgContent += message.content;
+import { ScriptBuilder } from '../../libs/scripts';
+export const script = new ScriptBuilder({
+    name: "gif lol",
+    group: "private",
+}).addOnMessage({
+    async onMessage(message) {
+        if (script.guilds == "global" || !script.guilds?.find(guild => guild.serverId === message.guildId)) return;
 
-            if (isGif(msgContent)) {
-                if (isGifed(message.author.id + "-" + guild.id)) {
-                    // printL("тут гифка! " + message.author.username + " в " + message.guild.name
-                    //     + "\n\"" + message.content + "\"", "cyan");
+        const guild: Guild | undefined = await fetchGuild(script.client!, message.guildId ?? "");
+        if (!guild) return;
 
-                    printL(format("тут гифка! " + message.author.username + " в " + guild.name
-                        + "\n\"" + message.content + "\""
-                        , { foreground: 'cyan' }));
 
-                    const count = isCalledMoreThanThreeTimesInTwoMinutes();
+        let msgContent = "";
+        if (message.attachments.size > 0) {
+            message.attachments.forEach((attachment: any) => {
+                msgContent += attachment.name;
+            });
+        }
+        msgContent += message.content;
 
-                    printL("Gif Counter: " + count);
+        if (isGif(msgContent)) {
+            if (isGifed(message.author.id + "-" + guild.id)) {
+                // printL("тут гифка! " + message.author.username + " в " + message.guild.name
+                //     + "\n\"" + message.content + "\"", "cyan");
 
-                    if (count === 1) {
-                        printL("💢" + dateToStr(new Date(), "timeStamp"));
-                        message.react('💢');
+                printL(format("тут гифка! " + message.author.username + " в " + guild.name
+                    + "\n\"" + message.content + "\""
+                    , { foreground: 'cyan' }));
+
+                const count = isCalledMoreThanThreeTimesInTwoMinutes();
+
+                printL("Gif Counter: " + count);
+
+                if (count === 1) {
+                    printL("💢" + dateToStr(new Date(), "timeStamp"));
+                    message.react('💢');
+                } else {
+                    if (count < 4) {
+                        const files = fs.readdirSync(imageDirectory);
+
+                        const randomIndex = Math.floor(Math.random() * files.length);
+                        const randomImageFile = files[randomIndex];
+
+                        const imagePath = `${imageDirectory}/${randomImageFile}`;
+
+                        message.channel.send({
+                            files: [imagePath],
+                        });
                     } else {
-                        if (count < 4) {
-                            const files = fs.readdirSync(imageDirectory);
-
-                            const randomIndex = Math.floor(Math.random() * files.length);
-                            const randomImageFile = files[randomIndex];
-
-                            const imagePath = `${imageDirectory}/${randomImageFile}`;
-
-                            message.channel.send({
-                                files: [imagePath],
-                            });
-                        } else {
-                            message.channel.send('https://media.tenor.com/44fPZetiy5oAAAAd/skrillex-babushka.gif');
-                            if (count > 10) {
-                                message.channel.send('ух бля');
-                                for (let i = 0; i < 4; i++) {
-                                    message.channel.send('https://media.tenor.com/44fPZetiy5oAAAAd/skrillex-babushka.gif');
-                                }
+                        message.channel.send('https://media.tenor.com/44fPZetiy5oAAAAd/skrillex-babushka.gif');
+                        if (count > 10) {
+                            message.channel.send('ух бля');
+                            for (let i = 0; i < 4; i++) {
+                                message.channel.send('https://media.tenor.com/44fPZetiy5oAAAAd/skrillex-babushka.gif');
                             }
                         }
                     }
-                } else {
-                    printL("👍" + dateToStr(new Date(), "timeStamp"));
-                    message.react('👍');
                 }
+            } else {
+                printL("👍" + dateToStr(new Date(), "timeStamp"));
+                message.react('👍');
             }
-        });
-
-        // client.login(token2);
+        }
     }
-};
+});
+
+// export const command = {
+
+//     info: {
+//         type: "startup",
+//     },
+//     data: {
+//         name: 'gif lol',
+//     },
+//     async onStart(client: any, scriptScopes: ScriptScopes) {
+//     }
+// };
 
 function isGifed(value: string): boolean {
     return Object.values(blacklist).includes(value);

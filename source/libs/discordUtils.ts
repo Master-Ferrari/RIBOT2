@@ -330,9 +330,9 @@ export class Fetcher {
             return undefined;
         }
     }
-    
+
+    public static async messages(channel: TextChannel, client: Client, n: number, relative?: "before"): Promise<Array<Message>>;
     public static async messages(message: MessageInfo, client: Client, n: number, relative?: "before" | "after"): Promise<Array<Message>>;
-    public static async messages(message: TextChannel, client: Client, n: number, relative?: "before" | "after"): Promise<Array<Message>>;
     public static async messages(messageOrChannel: MessageInfo | TextChannel, client: Client, n: number, relative?: "before" | "after"): Promise<Array<Message>> {
         try {
 
@@ -340,6 +340,7 @@ export class Fetcher {
             let msg: Message | undefined;
             if (messageOrChannel instanceof Message || 'messageId' in messageOrChannel) {
                 msg = await Fetcher.message(messageOrChannel, client);
+                printD({ msg });
                 if (!msg) return [];
                 channel = msg.channel as TextChannel;
 
@@ -349,7 +350,7 @@ export class Fetcher {
                     after: relative === "before" ? msg.id : undefined,
                     before: relative === "after" ? msg.id : undefined
                 });
-                return Array.from(messages.values());
+                return messages.map(m => m);
             }
             else {
                 channel = await Fetcher.channel(messageOrChannel, client);
@@ -363,13 +364,13 @@ export class Fetcher {
         }
     }
 
-    public static async fetchLastMessage(channel: TextChannel, client: Client): Promise<Message | null> {
-        try {
-            const messages = await channel.messages.fetch({ limit: 1 });
-            return messages.first() || null;
-        } catch (error) {
-            console.error('Error fetching messages:', error);
-            return null;
-        }
-    }
+    // public static async fetchLastMessage(channel: TextChannel, client: Client): Promise<Message | null> {
+    //     try {
+    //         const messages = await channel.messages.fetch({ limit: 1 });
+    //         return messages.first() || null;
+    //     } catch (error) {
+    //         console.error('Error fetching messages:', error);
+    //         return null;
+    //     }
+    // }
 }

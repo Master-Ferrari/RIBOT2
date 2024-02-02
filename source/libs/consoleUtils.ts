@@ -4,9 +4,11 @@ import * as path from 'path';
 
 const logPath = path.join(__dirname, '../../log');
 
+export type Color = 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white'  
+
 type StyleOptions = {
-    foreground?: 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white';
-    background?: 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white'
+    foreground?: Color;
+    background?: Color
     | 'brightBlack' | 'brightRed' | 'brightGreen' | 'brightYellow' | 'brightBlue'
     | 'brightMagenta' | 'brightCyan' | 'brightWhite' | 'brightGray';
     bold?: boolean;
@@ -98,7 +100,7 @@ function printD(obj: any, options: PrintDOptions = { head: true, depth: 0 }): st
     }
 
     if (options.head && obj && typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj).length === 1) {
-        const firstKey = Object.keys(obj)[0];
+        const firstKey = Object.keys(obj)[0];``
         print(format(String(typeof obj[firstKey]) + ' ' + firstKey,
             { foreground: 'black', background: 'blue', bold: true, italic: false }));
 
@@ -114,7 +116,7 @@ function printD(obj: any, options: PrintDOptions = { head: true, depth: 0 }): st
 async function printL(text: any = "", newLine: boolean = true): Promise<string> {
     // const logPath = path.resolve(__dirname, '../log');
     // printD({ text });
-    const logString = print(text, newLine);
+    const logString = print(text, newLine); 
 
     if (!fs.existsSync(logPath)) {
         fs.mkdirSync(logPath, { recursive: true });

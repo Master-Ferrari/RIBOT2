@@ -5,26 +5,28 @@ import fs from 'fs/promises';
 import { MessageContextMenuCommandInteraction, Client } from 'discord.js';
 // import { printD } from '../../lib/consoleUtils';
 
-export const command = {
+import { ScriptBuilder } from '../../libs/scripts';
 
-    info: {
-        type: "context",
-    },
+export const script = new ScriptBuilder({
+    name: "analysis",
+    group: "basa",
+}).addOnContext(
+    {
+        contextDeployData: new ContextMenuCommandBuilder()
+            .setName('analysis')
+            .setType(ApplicationCommandType.Message),
+        onContext: async (interaction) => {
+            if (!interaction.isMessageContextMenuCommand()) return;
 
-    data: new ContextMenuCommandBuilder()
-        .setName('analysis')
-        .setType(ApplicationCommandType.Message),
+            const targetMessage = interaction.targetMessage;
 
-    async onInteraction(interaction: MessageContextMenuCommandInteraction, client: Client): Promise<void> {
+            const output = util.inspect(targetMessage, { depth: null });
 
-        const targetMessage = interaction.targetMessage;
+            const filename = 'output.js';
+            await fs.writeFile(filename, output, 'utf8');
+            await interaction.reply({ files: [filename] });
+            await fs.unlink(filename);
 
-        const output = util.inspect(targetMessage, { depth: null });
-
-        const filename = 'output.js';
-        await fs.writeFile(filename, output, 'utf8');
-        await interaction.reply({ files: [filename] });
-        await fs.unlink(filename);
-
-    },
-};
+        }
+    }
+)
