@@ -46,7 +46,7 @@ export const script = new ScriptBuilder({
             let tts = TTSFactory.createTTS(voice);
 
             tts.send({
-                prompt, voice, onWav: (data) => {
+                text: prompt, voice, onWav: (data) => {
                     interaction.editReply({ files: [tts.outputPath] });
                 }
             });

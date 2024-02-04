@@ -5,12 +5,12 @@ import fs from 'fs';
 type SendOptions = {
     voice?: string,
     onWav: (data: string) => any,
-    prompt: string
+    text: string
 }
 
 
 export interface ITTS {
-    send({ voice, onWav, prompt }: SendOptions): void;
+    send({ voice, onWav, text }: SendOptions): void;
     close(): void;
     outputPath: string;
     readonly voices: readonly string[];
@@ -63,7 +63,7 @@ export class CoquiTTS implements ITTS {
         print(format('TTS initialized', { bold: true, foreground: 'white', background: 'green' }));
     }
 
-    send({ voice, onWav, prompt }: SendOptions) {
+    send({ voice, onWav, text: prompt }: SendOptions) {
         if (!voice) voice = 'дамочка'; //this.voices[Math.floor(Math.random() * this.voices.length)]
         this.callQueue.push({ prompt, voice, onWav });
         if (!this.isProcessing) {
@@ -118,7 +118,7 @@ export class OpenaiTTS implements ITTS {
         return OpenaiTTS.instance;
     }
 
-    public async send({ voice = 'nova', onWav, prompt }: SendOptions): Promise<void> {
+    public async send({ voice = 'nova', onWav, text: prompt }: SendOptions): Promise<void> {
         try {
             const mp3 = await this.openai.audio.speech.create({
                 model: "tts-1",

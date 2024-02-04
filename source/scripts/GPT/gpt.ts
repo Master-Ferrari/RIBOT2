@@ -310,7 +310,7 @@ export const script = new ScriptBuilder({
                     let tts = TTSFactory.createTTS();
                     const content = msg.content.replace(/```.*?```/gs, ". код читать не буду. ");
                     tts.send({
-                        prompt: content, onWav: async (data) => {
+                        text: content, onWav: async (data) => {
                             if (!msg.guildId) return;
                             print("редактируем " + msg.id);
 

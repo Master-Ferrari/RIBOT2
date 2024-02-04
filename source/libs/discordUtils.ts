@@ -340,17 +340,19 @@ export class Fetcher {
             let msg: Message | undefined;
             if (messageOrChannel instanceof Message || 'messageId' in messageOrChannel) {
                 msg = await Fetcher.message(messageOrChannel, client);
-                printD({ msg });
                 if (!msg) return [];
                 channel = msg.channel as TextChannel;
 
                 if (!relative) relative = "before";
                 const messages = await channel.messages.fetch({
                     limit: n,
-                    after: relative === "before" ? msg.id : undefined,
-                    before: relative === "after" ? msg.id : undefined
+                    before: msg.id
+                    // after: relative === "before" ? msg.id : undefined,
+                    // before: relative === "after" ? msg.id : undefined
                 });
-                return messages.map(m => m);
+                const lastMessages = messages.map(m => m);
+                printD({ messages: messages.map(m => m.content).reverse() });
+                return lastMessages;
             }
             else {
                 channel = await Fetcher.channel(messageOrChannel, client);
