@@ -1,5 +1,11 @@
-import { Client, Interaction, ContextMenuCommandBuilder, Partials, MessageContextMenuCommandInteraction, UserContextMenuCommandInteraction, SlashCommandBuilder, CommandInteraction, ButtonInteraction, Message, BitFieldResolvable, GatewayIntentsString, GatewayIntentBits } from 'discord.js';
-import { print, printD, printL, format, dateToStr, printE } from './consoleUtils';
+import {
+    Client, Interaction, AutocompleteInteraction, ContextMenuCommandBuilder, Partials,
+    SlashCommandSubcommandsOnlyBuilder, MessageContextMenuCommandInteraction, UserContextMenuCommandInteraction,
+    SlashCommandBuilder, ChatInputCommandInteraction, ButtonInteraction, Message, BitFieldResolvable,
+    GatewayIntentsString, GatewayIntentBits
+} from 'discord.js';
+
+import { print, printD, printL, format, dateToStr, interactionLog, printE } from './consoleUtils';
 
 export type ServerConfig = {
     serverName: string;
@@ -38,18 +44,18 @@ export class ScriptBuilder {
     public get usersList() { return this._usersList; }
 
     //slash
-    private _onSlash?: (interaction: CommandInteraction) => Promise<void>;
-    private _slashDeployData?: SlashCommandBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
+    private _onSlash?: (interaction: ChatInputCommandInteraction) => Promise<void>;
+    private _slashDeployData?: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
     public get onSlash() {
         if (!this._onSlash) return;
         return async (interaction: Interaction) => {
-            if (!interaction.isCommand()) return;
+            if (!interaction.isChatInputCommand()) return;
             if (interaction.commandName !== this.name) return;
 
             const username = interaction.user.username;
             const commandName = interaction.commandName;
             const options = interaction.options.data.map(option => (` ${option.name}:${option.value}`)).join(" ");
-            await this.interactionLog(username, commandName, options);
+            await interactionLog(username, commandName, options, interaction.user.id);
 
             if (!this.checkSetup()) return;
             if (this.guilds !== "global" && !this.guilds!.map(guild => guild.serverId).includes(interaction.guildId!)) return;
@@ -59,7 +65,7 @@ export class ScriptBuilder {
     }
     public get slashDeployData() { return this._slashDeployData; }
     public isSlash(): this is ScriptBuilder & {
-        onSlash: (interaction: CommandInteraction) => Promise<void>,
+        onSlash: (interaction: ChatInputCommandInteraction) => Promise<void>,
         slashDeployData: SlashCommandBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">
     } {
         return this.onSlash !== undefined;
@@ -76,7 +82,7 @@ export class ScriptBuilder {
             const username = interaction.user.username;
             const commandName = interaction.commandName;
             const options = interaction.options.data.map(option => (` ${option.name}:${option.value}`)).join(" ");
-            await this.interactionLog(username, commandName, options);
+            await interactionLog(username, commandName, options, interaction.user.id);
 
             if (!this.checkSetup()) return;
             if (this.guilds !== "global" && !this.guilds!.map(guild => guild.serverId).includes(interaction.guildId!)) return;
@@ -111,37 +117,62 @@ export class ScriptBuilder {
     }
     //button
     private _onButton?: (interaction: ButtonInteraction) => Promise<void>;
-    private _isValidCustomId?: (customId: string) => Promise<boolean>;
+    private _isValidButtonId?: (customId: string) => Promise<boolean>;
     public get onButton() {
         if (!this._onButton) return undefined;
         return async (interaction: Interaction) => {
             if (!interaction.isButton()) return;
-            if (!this.isValidCustomId!(interaction.customId)) return;
+            if (!this.isValidButtonId!(interaction.customId)) return;
 
             const username = interaction.user.username;
-            const commandName = "button/";
+            const commandName = interaction.message.id + "/button/";
             const options = interaction.customId;
-            await this.interactionLog(username, commandName, options);
+            await interactionLog(username, commandName, options, interaction.user.id);
 
             if (!this.checkSetup()) return;
             await this._onButton!(interaction);
         }
     }
-    public get isValidCustomId() { return this._isValidCustomId; }
+    public get isValidButtonId() { return this._isValidButtonId; }
     public isButton(): this is ScriptBuilder & {
         onButton: (interaction: ButtonInteraction) => Promise<void>,
         isValidCustomId: (customId: string) => Promise<boolean>
     } {
         return this.onButton !== undefined;
     }
+
+    //autocomplite
+    private _onAutocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
+    private _isValidAutocompleteCommandName?: (customId: string) => Promise<boolean>;
+    public get onAutocomplete() {
+        return async (interaction: Interaction) => {
+            if (!interaction.isAutocomplete()) return;
+
+            // printD({ func: this._isValidAutocompleteCommandName });
+            if (!this.isValidAutocompleteCommandName) return;///////////////////////////////////////wtf
+            if (!(await this.isValidAutocompleteCommandName(interaction.commandName))) return;
+
+            if (!this.checkSetup()) return;
+            await this._onAutocomplete!(interaction);
+        }
+    }
+    public get isValidAutocompleteCommandName() { return this._isValidAutocompleteCommandName; }
+    public isAutocomplete(): this is ScriptBuilder & {
+        onAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>,
+        isValidAutocompleteCommandName: (customId: string) => Promise<boolean>
+    } {
+        return this.onAutocomplete !== undefined;
+    }
+
     //update
     private _onUpdate?: () => Promise<void>;
     public get onUpdate() { return this._onUpdate; }
     public isUpdate(): this is ScriptBuilder & { onUpdate: () => Promise<void> } {
         return this.onUpdate !== undefined;
     }
+
     //todo: events events
-    //todo: autocomlpite
+    //tatu: autocomlpite
     //todo: reactions
     //todo: multiple slash events
     //todo: userContext and messageContext definition
@@ -193,13 +224,14 @@ export class ScriptBuilder {
             printE('Client or guilds not set. ' + this._name);
             throw new Error();
         };
+        if (!this._enabled) return false;
         return true;
     }
 
     public addOnSlash(
         options: {
-            slashDeployData: SlashCommandBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">,
-            onSlash: (interaction: CommandInteraction) => Promise<void>
+            slashDeployData: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">,
+            onSlash: (interaction: ChatInputCommandInteraction) => Promise<void>
         }
     ) {
         if (this._name !== options.slashDeployData.name) {
@@ -254,7 +286,18 @@ export class ScriptBuilder {
         }
     ) {
         this._onButton = options.onButton;
-        this._isValidCustomId = options.isValidCustomId;
+        this._isValidButtonId = options.isValidCustomId;
+        return this;
+    }
+
+    public addOnAutocomplete(
+        options: {
+            isValidAutocompleteCommandName: (commandName: string) => Promise<boolean>,
+            onAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>,
+        }
+    ) {
+        this._onAutocomplete = options.onAutocomplete;
+        this._isValidAutocompleteCommandName = options.isValidAutocompleteCommandName;
         return this;
     }
 
@@ -270,23 +313,17 @@ export class ScriptBuilder {
         return this;
     }
 
-    private async interactionLog(username: string, commandName: string, options: string) {
-        await printL(
-            username + format(
-                " /" + commandName + options
-                , { foreground: 'yellow' }
-            ) + dateToStr(new Date(), "timeStamp"));
-    }
-
-    public interactionHandler(
+    public async interactionHandler(
         interaction: Interaction
     ) {
         if (this.onButton)
-            this.onButton(interaction);
+            await this.onButton(interaction);
         if (this.onSlash)
-            this.onSlash(interaction);
+            await this.onSlash(interaction);
         if (this.onContext)
-            this.onContext(interaction);
+            await this.onContext(interaction);
+        if (this.onAutocomplete)
+            await this.onAutocomplete(interaction);
     }
 
 

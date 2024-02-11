@@ -8,7 +8,7 @@ export type ModelVersions = 'gpt-3.5-turbo-1106' | 'gpt-4-1106-preview';
 type ImageContent = { image: string };
 type TextContent = string;
 type MessageContent = TextContent | ImageContent | (TextContent | ImageContent)[];
-type Message = { role: 'user' | 'assistant', content: MessageContent };
+type Message = { role: 'user' | 'assistant' | 'system', content: MessageContent };
 type History = Message[];
 
 type ChatResponse = {

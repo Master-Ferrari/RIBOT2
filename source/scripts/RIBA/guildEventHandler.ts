@@ -96,6 +96,8 @@ export const script = new ScriptBuilder({
                     }
                 }
 
+                if (!eventMsg.thread) await eventMsg.startThread({ name: guildScheduledEvent.name });
+                if (eventMsg.hasThread) await eventMsg.thread?.setArchived(true);
 
                 const status = event === "guildScheduledEventDelete" ? 3 : guildScheduledEvent.status;
                 const statusInfo = status === 1 ?
@@ -156,26 +158,6 @@ ${guildScheduledEvent.description !== "" ? "\`\`\`" + guildScheduledEvent.descri
     }
 })
 
-// export const command = {
-
-//     info: {
-//         type: "startup",
-//         requiredServerSettings: [
-//             {
-//                 type: "string",
-//                 name: "event-webhook-url",
-//                 description: "event webhook url"
-//             }
-//         ]
-//     },
-
-//     data: {
-//         name: 'guildEventHandler',
-//     },
-
-//     async onStart(client: Client, scriptScopes: ScriptScopes): Promise<void> {
-//     }
-// }
 
 async function webhook(params: WebhookSend): Promise<Message | undefined>;
 async function webhook(messageId: string, params: WebhookSend): Promise<Message | undefined>;

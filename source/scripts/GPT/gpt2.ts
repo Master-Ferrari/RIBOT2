@@ -1,7 +1,7 @@
 import { AttachmentBuilder, Client, Message, ActionRowBuilder, TextChannel, ButtonComponent, ComponentType, Events, User, PartialUser, PartialMessageReaction, MessageReaction } from 'discord.js';
 import { ButtonBuilder, ButtonStyle, SlashCommandBuilder, MessageCreateOptions, MessageActionRowComponentBuilder, MessageEditOptions } from 'discord.js';
 
-import { print, printD, printL, format, dateToStr, printE } from '../../libs/consoleUtils';
+import { print, printD, printL, format, dateToStr, printE, prettySlice, interactionLog } from '../../libs/consoleUtils';
 import { fetchLastNMessages, Fetcher, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings, updateReactions, ScriptScopes } from '../../libs/discordUtils';
 import { GPT, History, ModelVersions, gptModels } from '../../libs/gptHandler';
 import { openaikey } from '../../botConfig.json';
@@ -26,12 +26,14 @@ const reactionNames = {
 
 type msgFiles = { url: string, name: string }[];
 
+type answer = {
+    content: string,
+    files: msgFiles
+}
+
 type GptMessageData = {
     messageId: string,
-    answers: {
-        content: string,
-        files: msgFiles
-    }[],
+    answers: answer[],
     currentIndex: number,
     deleted: boolean
 };
@@ -53,7 +55,7 @@ export const script = new ScriptBuilder({
     .addOnSlash({
         slashDeployData: new SlashCommandBuilder()
             .setName('gpt2')
-            .setDescription('casts gpt msg')
+            .setDescription('BETA')
             .addIntegerOption(option =>
                 option.setName('visiondistance')
                     .setDescription('how many messages to look back')
@@ -80,7 +82,7 @@ export const script = new ScriptBuilder({
 
             let message = await channel.send(Responder.buildLoadingMessage() as MessageCreateOptions);
 
-            const lastMessages = await Fetcher.messages(channel, script.client!, defaultVisionDistance, "before");
+            const lastMessages = await Fetcher.messages(message, script.client!, defaultVisionDistance, "before");
             const content = String(await askGpt(script.client!, gptModels, lastMessages, defaultVisionDistance, defaultModel));
             await message.edit(Responder.buildDoneMessage(content) as MessageEditOptions);
 
@@ -112,23 +114,23 @@ export const script = new ScriptBuilder({
                 let tts = TTSFactory.createTTS();
                 const content = interaction.message.content.replace(/```.*?```/gs, ". код читать не буду. ");
 
-                await interaction.update(Responder.buildLoadingButtonMessage(data, buttonNames.say) as MessageEditOptions);
+                await interaction.update(Responder.buildLoadingButtonMessage(data, [buttonNames.say], [buttonNames.regenerate, buttonNames.left, buttonNames.right]) as MessageEditOptions);
 
                 tts.send({
                     text: content,
                     onWav: async (ttsData) => {
 
                         if (!data) { printE("No data"); return; }
-                        if (data.deleted) return;
 
                         const voiceFile = new AttachmentBuilder(tts.outputPath, { name: "tts.wav" });
 
                         //не забыть не убить картинки там которые были
+                        if (data.deleted) return;
                         await interaction.message.edit({ ...Responder.buildDoneMessage(data), files: [voiceFile] } as MessageEditOptions);
 
                         const files: msgFiles = interaction.message.attachments.map(attachment => { return { url: attachment.url, name: attachment.name } });
 
-                        printD({ files });
+                        // printD({ files });
 
                         data = await GptDbHandler.addFiles(msgId, files, "combine");
 
@@ -137,12 +139,12 @@ export const script = new ScriptBuilder({
 
             } else if (interaction.customId === buttonNames.regenerate) {
 
-                if (data.deleted) return;
 
                 const lastMessages = Fetcher.messages(interaction.message, script.client!, defaultVisionDistance, "before");
-                await interaction.update(Responder.buildLoadingButtonMessage(data, buttonNames.regenerate) as MessageEditOptions);
-
                 const content = askGpt(script.client!, gptModels, await lastMessages, defaultVisionDistance, defaultModel);
+
+                if (data.deleted) return;
+                await interaction.update(Responder.buildLoadingButtonMessage(data, [buttonNames.regenerate], [buttonNames.say, buttonNames.left, buttonNames.right]) as MessageEditOptions);
 
                 data = await GptDbHandler.anotherPage(msgId, await content);
                 if (data.deleted) return;
@@ -150,14 +152,14 @@ export const script = new ScriptBuilder({
 
             } else if (interaction.customId === buttonNames.left) {
 
-                if (data.deleted) return;
                 data = await GptDbHandler.loadPage(data.messageId, "left");
+                if (data.deleted) return;
                 await interaction.update(Responder.buildDoneMessage(data) as MessageEditOptions);
 
             } else if (interaction.customId === buttonNames.right) {
 
-                if (data.deleted) return;
                 data = await GptDbHandler.loadPage(data.messageId, "right");
+                if (data.deleted) return;
                 await interaction.update(Responder.buildDoneMessage(data) as MessageEditOptions);
 
             }
@@ -175,6 +177,29 @@ export const script = new ScriptBuilder({
             guildSettingS = await Database.interact('database.db', async (db) => {
                 return await db.getTable('guildSettings');
             });
+        }
+    }).addOnMessage({
+        onMessage: async (userMessage) => {
+
+            if (!userMessage.guild || !userMessage.guildId) return;
+
+            if (userMessage.author.bot) return;
+            if (!guildSettingS[userMessage.guild.id]?.gptChannelId) return;
+            if (guildSettingS[userMessage.guild.id]?.gptChannelId !== userMessage.channelId) return;
+
+            interactionLog(userMessage.author.tag, "gpt", userMessage.content, userMessage.author.id);
+
+            const channel = userMessage.channel as TextChannel;
+
+            let message = await channel.send(Responder.buildLoadingMessage() as MessageCreateOptions);
+
+            const lastMessages = await Fetcher.messages(message, script.client!, defaultVisionDistance, "before");
+
+            const content = String(await askGpt(script.client!, gptModels, lastMessages, defaultVisionDistance, defaultModel));
+            await message.edit(Responder.buildDoneMessage(content) as MessageEditOptions);
+
+            await GptDbHandler.firstPage(message.id, content);
+
         }
     });
 
@@ -290,14 +315,22 @@ class Responder {
     }
 
 
-    public static buildLoadingButtonMessage(data: GptMessageData, loadButtonName: string): MessageCreateOptions | MessageEditOptions {
+    public static buildLoadingButtonMessage(data: GptMessageData, loadButtonIds: string[], disabledButtonIds?: string[]): MessageCreateOptions | MessageEditOptions {
 
         let btnsInfo: ButtomParams[][] = this.buildDefaultBtns([(data.currentIndex + 1), (data.answers.length)]);
         btnsInfo = btnsInfo.map(row => {
             return row.map(button => {
-                return button.customId === loadButtonName ? this.btnInfo.load(loadButtonName) : button;
+                return loadButtonIds.includes(button.customId) ? this.btnInfo.load(button.customId) : button;
             });
         })
+
+        if (disabledButtonIds) {
+            btnsInfo = btnsInfo.map(row => {
+                return row.map(button => {
+                    return disabledButtonIds.includes(button.customId) ? { ...button, setdisabled: true } : button;
+                });
+            })
+        }
 
         const files = data.answers[data.currentIndex].files.map(file => {
             return new AttachmentBuilder(file.url, { name: file.name });
@@ -332,7 +365,7 @@ async function askGpt(client: Client, gptModels: string[], lastMessages: Message
     const gpt = new GPT(openaikey, 2000, model);
 
     const history: History = [{
-        role: "assistant",
+        role: "system",
         content: `Это запись чата. Ты дискорд бот. Твой ник - ${client.user?.username}.
 Для кода ВСЕГДА используется форматирование: \`\`\`[язык][код]\`\`\` .
 Отвечай на последние вопросы или сообщения.\n
@@ -362,10 +395,16 @@ async function askGpt(client: Client, gptModels: string[], lastMessages: Message
     else {
         content = ans.ans;
     }
-    print('GPT: ' + content);
-    return content || 'Нет ответа';
-}
+    if (content.length > 2000) {
+        const slice = prettySlice(content, 0, 1980);
+        content = slice.start + '...\n[читать продолжение в источнике]';
+    }
 
+
+    // print('GPT: ' + content);
+    return content || 'Нет ответа';
+
+}
 
 class GptDbHandler {
     private static _gptMessagesTableName = 'gptMessages';
@@ -415,6 +454,7 @@ class GptDbHandler {
         let newFiles = json.answers[json.currentIndex].files ?? [];
         if (method == "combine") {
             newFiles = newFiles.concat(files);
+            newFiles = [...newFiles.filter(f => { !files.map(ff => ff.name).includes(f.name) }), ...files];
         } else if (method == "append") {
             newFiles = [...newFiles, ...files];
         } else if (method == "replace") {
@@ -422,7 +462,7 @@ class GptDbHandler {
         }
         const data = {
             ...json,
-            answers: json.answers.map(( ans, index) => {
+            answers: json.answers.map((ans, index) => {
                 if (index == json.currentIndex) {
                     return { ...ans, files: newFiles };
                 }
@@ -437,7 +477,8 @@ class GptDbHandler {
 
     static async loadPage(messageId: string, direction: "left" | "right"): Promise<GptMessageData> {
         const json = await this.load(messageId) as GptMessageData;
-        const newIndex = Math.max(0, Math.min(json.answers.length, direction == "left" ? json.currentIndex - 1 : json.currentIndex + 1));
+        // const newIndex = Math.max(0, Math.min(json.answers.length, direction == "left" ? json.currentIndex - 1 : json.currentIndex + 1));
+        const newIndex = direction == "left" ? Math.max(0, json.currentIndex - 1) : Math.min(json.answers.length - 1, json.currentIndex + 1);
         const data = {
             ...json,
             currentIndex: newIndex
@@ -462,3 +503,9 @@ class GptDbHandler {
     }
 
 }
+
+// function getContent(message: Message) {
+//     if(message.attachments.filter((attachment) => attachment.contentType > 0).size > 0){
+//     }
+    
+// } 

@@ -1,5 +1,12 @@
 {
-    "ribotToken": "123",
+	"ribotToken": "123",
+	"myId": "123",
 	"clientId": "123",
-	"openaikey": "123"
+	"openaikey": "123",
+	"featureSwitches": {
+		"CoquiAI": true,
+		"gpt": false,
+		"say": true,
+		"story": false
+	}
 }

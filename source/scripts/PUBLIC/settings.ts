@@ -45,7 +45,7 @@ export const script = new ScriptBuilder({
         .setDescription('server settings'),
     onSlash: async (interaction) => {
 
-        const options: any = interaction.options;
+        const options = interaction.options;
 
         const botsChannel = options.getChannel("botschannel");
         const mainWebhook = options.getString("webhook");
@@ -57,7 +57,7 @@ export const script = new ScriptBuilder({
 
             let guildSetting = completeGuildSettings(result as Partial<GuildSetting>);
 
-            if (options._subcommand == "get") {
+            if (options.getSubcommand() == "get") {
                 return guildSetting;
             }
 
@@ -75,7 +75,7 @@ export const script = new ScriptBuilder({
             return guildSetting;
         })
 
-        if (options._subcommand == "get") {
+        if (options.getSubcommand() == "get") {
             await interaction.reply({
                 content: `\`\`\`json\n ${JSON.stringify(guildSetting, null, 2)} \`\`\``,
                 ephemeral: true

@@ -69,10 +69,10 @@ type GroupConfig = {
             await deployCommands(serverList, client);
         }
 
-        await printL("OnStart:   " + format(scriptsList.filter(script => script.isStart()).map(script => script.name).join(", "),
-            { foreground: 'magenta', italic: true }));
-        await printL("OnMessgae: " + format(scriptsList.filter(script => script.isMessage()).map(script => script.name).join(", "),
-            { foreground: 'magenta', italic: true }));
+        await printL("OnStart:   " + scriptsList.filter(script => script.isStart())
+            .map(script => format(script.name, { foreground: script.enabled ? 'magenta' : 'red', italic: true })).join(", "));
+        await printL("OnMessgae: " + scriptsList.filter(script => script.isMessage())
+            .map(script => format(script.name, { foreground: 'magenta', italic: true })).join(", "));
 
         await printL(format(`Ready!`, { foreground: 'white', background: 'red', bold: true, italic: true })
             + " the final number of scripts: " + scriptsList.length);

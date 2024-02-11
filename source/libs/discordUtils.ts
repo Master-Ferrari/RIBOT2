@@ -351,7 +351,7 @@ export class Fetcher {
                     // before: relative === "after" ? msg.id : undefined
                 });
                 const lastMessages = messages.map(m => m);
-                printD({ messages: messages.map(m => m.content).reverse() });
+                // printD({ messages: messages.map(m => m.content).reverse() });
                 return lastMessages;
             }
             else {

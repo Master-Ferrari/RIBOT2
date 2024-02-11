@@ -1,5 +1,5 @@
 import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel, Events, User, PartialUser, PartialMessageReaction, MessageReaction } from 'discord.js';
-import { print, printD, printL, format, dateToStr, printE } from '../../libs/consoleUtils';
+import { print, printD, printL, format, dateToStr, printE, prettySlice } from '../../libs/consoleUtils';
 import { fetchLastNMessages, WebhookSend, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings, updateReactions, ScriptScopes } from '../../libs/discordUtils';
 import { GPT, History, ModelVersions, gptModels } from '../../libs/gptHandler';
 import { openaikey } from '../../botConfig.json';

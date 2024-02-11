@@ -4,7 +4,7 @@ import * as path from 'path';
 
 const logPath = path.join(__dirname, '../../log');
 
-export type Color = 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white'  
+export type Color = 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white'
 
 type StyleOptions = {
     foreground?: Color;
@@ -50,7 +50,7 @@ const ansiStyles = {
     reset: '0',
 };
 
-function format(text: string, options: StyleOptions): string {
+export function format(text: string, options: StyleOptions): string {
     let styleCodes: string[] = [];
 
     if (options.foreground) {
@@ -76,7 +76,7 @@ function format(text: string, options: StyleOptions): string {
     return styleStart + text + styleEnd;
 }
 
-function print(text: any = "", newLine: boolean = true): string {
+export function print(text: any = "", newLine: boolean = true): string {
     // console.log(newLine);
     text = "[0m" + String(text) + (newLine ? '\n' : "");
     // process.stdout.write(text);
@@ -91,7 +91,7 @@ interface PrintDOptions {
     head?: boolean;
     depth?: number;
 }
-function printD(obj: any, options: PrintDOptions = { head: true, depth: 0 }): string {
+export function printD(obj: any, options: PrintDOptions = { head: true, depth: 0 }): string {
 
     function decorateLines(inputString: string) {
         const lines = inputString.split('\n');
@@ -100,7 +100,7 @@ function printD(obj: any, options: PrintDOptions = { head: true, depth: 0 }): st
     }
 
     if (options.head && obj && typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj).length === 1) {
-        const firstKey = Object.keys(obj)[0];``
+        const firstKey = Object.keys(obj)[0]; ``
         print(format(String(typeof obj[firstKey]) + ' ' + firstKey,
             { foreground: 'black', background: 'blue', bold: true, italic: false }));
 
@@ -113,10 +113,10 @@ function printD(obj: any, options: PrintDOptions = { head: true, depth: 0 }): st
     return print(decorateLines(text));
 }
 
-async function printL(text: any = "", newLine: boolean = true): Promise<string> {
+export async function printL(text: any = "", newLine: boolean = true): Promise<string> {
     // const logPath = path.resolve(__dirname, '../log');
     // printD({ text });
-    const logString = print(text, newLine); 
+    const logString = print(text, newLine);
 
     if (!fs.existsSync(logPath)) {
         fs.mkdirSync(logPath, { recursive: true });
@@ -138,7 +138,7 @@ async function printL(text: any = "", newLine: boolean = true): Promise<string> 
     return logString;
 }
 
-function dateToStr(date: Date, style: string = "ddmmyyyy"): string {
+export function dateToStr(date: Date, style: string = "ddmmyyyy"): string {
     const dd = date.toLocaleDateString("ru-RU", { day: '2-digit' });
     const mm = date.toLocaleDateString("ru-RU", { month: '2-digit' });
     const ww = date.toLocaleDateString("ru-RU", { weekday: 'short' });
@@ -163,8 +163,39 @@ function dateToStr(date: Date, style: string = "ddmmyyyy"): string {
     return ''; // Добавьте возвращаемое значение по умолчанию на случай, если ни одно из условий не выполнено
 }
 
-function printE(msg: any = "", error: any = null): string {
+export function printE(msg: any = "", error: any = null): string {
     return print(format(String(msg) + (error ? '\n' + String(error) : ' '), { foreground: 'red', bold: true }));
 }
 
-export { print, printD, printL, printE, format, dateToStr };
+export function prettySlice(input: string, minLength: number, maxLength: number, breakers: string[] = ['\n', '.', ',', ' ']): { start: string, end: string, full: string } {
+    let result = input.slice(0, maxLength);
+
+    if (result.length > minLength) {
+        for (let breaker of breakers) {
+            const lastBreakIndex = result.lastIndexOf(breaker);
+            if (lastBreakIndex > minLength) {
+                result = breaker === '\n' ? result.slice(0, lastBreakIndex) : result.slice(0, lastBreakIndex + 1);
+                break;
+            }
+        }
+        result = result.length > maxLength ? result.slice(0, maxLength) : result;
+    }
+
+    return {
+        start: result,
+        end: input.slice(result.length),
+        full: input
+    };
+}
+
+import { myId } from './../botConfig.json';
+
+export async function interactionLog(username: string, commandName: string, options: string, userId: string) {
+    await printL(
+        username + format(
+            " /" + commandName + (userId != myId ? options : "")
+            , { foreground: 'yellow' }
+        ) + dateToStr(new Date(), "timeStamp"));
+}
+
+// export { print, printD, printL, printE, format, dateToStr };
