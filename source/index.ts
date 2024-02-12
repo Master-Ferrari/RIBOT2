@@ -56,10 +56,6 @@ type GroupConfig = {
 
     });
 
-    await client.login(ribotToken);
-    await printL(format(`Logged`, { foreground: 'white', background: 'red', bold: true, italic: true })
-        + ` as ${client.user?.tag}`
-        + dateToStr(new Date(), "timeStamp"));
 
     // printD({ servers: serverList.map(server => [server.serverName, server.serverId]) });
 
@@ -78,12 +74,20 @@ type GroupConfig = {
             + " the final number of scripts: " + scriptsList.length);
 
         updateAnswer(client);
-
+        let i = 0;
         scriptsList.forEach(script => {
-            if (script.isStart())
+            if (script.isStart()) {
                 script.onStart();
+                i++;
+                print(i + script.name);
+            }
         });
     });
+
+    await client.login(ribotToken);
+    await printL(format(`Logged`, { foreground: 'white', background: 'red', bold: true, italic: true })
+        + ` as ${client.user?.tag}`
+        + dateToStr(new Date(), "timeStamp"));
 
     client.on('interactionCreate', async interaction => {
         scriptsList.forEach(script => {

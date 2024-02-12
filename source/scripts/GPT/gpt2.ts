@@ -184,6 +184,7 @@ export const script = new ScriptBuilder({
             if (!userMessage.guild || !userMessage.guildId) return;
 
             if (userMessage.author.bot) return;
+            if (!guildSettingS) return;
             if (!guildSettingS[userMessage.guild.id]?.gptChannelId) return;
             if (guildSettingS[userMessage.guild.id]?.gptChannelId !== userMessage.channelId) return;
 
