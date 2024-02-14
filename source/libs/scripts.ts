@@ -19,7 +19,8 @@ export interface OnEventSettings {
 }
 
 export interface OnMessageSettings extends OnEventSettings {
-    DM?: boolean;
+    ignoreDM?: boolean;
+    ignoreBots?: boolean;
 }
 
 export class ScriptBuilder {
@@ -48,7 +49,7 @@ export class ScriptBuilder {
         whitelist: string[] | undefined;
         blacklist: string[] | undefined;
     } = {
-            whitelist: [], blacklist: []
+            whitelist: undefined, blacklist: undefined
         };
     public get guilds() { return this._guilds; }
     public get isGlobal() { return this._isGlobal; }
@@ -129,7 +130,8 @@ export class ScriptBuilder {
     private _onMessageSettings: OnMessageSettings = {
         scopeGuilds: true,
         scopeUsers: true,
-        DM: false
+        ignoreDM: true,
+        ignoreBots: true
     };
     public get onMessage() {
         if (!this._onMessage) return undefined;
@@ -138,7 +140,8 @@ export class ScriptBuilder {
             if (!this.checkSetup()) return;
 
             if (!this.checkSettings(this._onMessageSettings, message.author.id, message.guild?.id)) return;
-            if (!this._onMessageSettings.DM && message.channel.isDMBased()) return;
+            if (this._onMessageSettings.ignoreDM && message.channel.isDMBased()) return;
+            if (this._onMessageSettings.ignoreBots && message.author.bot) return;
 
             await this._onMessage!(message);
         };
@@ -165,7 +168,7 @@ export class ScriptBuilder {
             await interactionLog(username, commandName, options, interaction.user.id);
 
             if (!this.checkSetup()) return;
-            
+
             if (!this.checkSettings(this._onButtonSettings, interaction.user.id, interaction.guild?.id)) return;
 
             await this._onButton!(interaction);
