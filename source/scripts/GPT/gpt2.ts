@@ -179,14 +179,14 @@ export const script = new ScriptBuilder({
             });
         }
     }).addOnMessage({
+        settings: {
+          ignoreDM: false  
+        },
         onMessage: async (userMessage) => {
 
-            if (!userMessage.guild || !userMessage.guildId) return;
-
-            if (userMessage.author.bot) return;
-            if (!guildSettingS) return;
-            if (!guildSettingS[userMessage.guild.id]?.gptChannelId) return;
-            if (guildSettingS[userMessage.guild.id]?.gptChannelId !== userMessage.channelId) return;
+            if( !userMessage.channel.isDMBased() &&
+                userMessage.guildId &&
+                guildSettingS[userMessage.guildId]?.gptChannelId !== userMessage.channelId) return;
 
             interactionLog(userMessage.author.tag, "gpt", userMessage.content, userMessage.author.id);
 
@@ -504,9 +504,3 @@ class GptDbHandler {
     }
 
 }
-
-// function getContent(message: Message) {
-//     if(message.attachments.filter((attachment) => attachment.contentType > 0).size > 0){
-//     }
-    
-// } 
