@@ -20,8 +20,16 @@ export const script = new ScriptBuilder({
         .setDescription('restarting the bot and deploying commands')
         .addStringOption(option =>
             option
-                .setName('full')
+                .setName('redeploycommands')
                 .setDescription('update commands?')
+                .setRequired(false)
+                .addChoices(
+                    { name: 'True', value: 'True' }
+                ))
+        .addStringOption(option =>
+            option
+                .setName('gitpull')
+                .setDescription('git pull?')
                 .setRequired(false)
                 .addChoices(
                     { name: 'True', value: 'True' }
@@ -29,7 +37,8 @@ export const script = new ScriptBuilder({
     onSlash: async (interaction) => {
 
         const options: any = interaction.options;
-        const full = options.getString('full') === 'True';
+        const deploy = options.getString('redeploycommands') === 'True';
+        const git = options.getString('gitpull') === 'True';
 
         // printL(`its updating me..`);
 
@@ -49,7 +58,7 @@ export const script = new ScriptBuilder({
         await db.close();
 
 
-        const command = 'npm run ribot' + (full ? ' update' : '');
+        const command = (git ? 'git pull && ' : '') + 'npm run ribot' + (deploy ? ' update' : '');
 
         const child = spawnSync(command, { stdio: 'inherit', shell: true });
 
