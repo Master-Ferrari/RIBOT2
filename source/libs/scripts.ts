@@ -13,6 +13,15 @@ export type ServerConfig = {
     scripts: Array<ScriptBuilder>;
 };
 
+export interface OnEventSettings {
+    scopeGuilds?: boolean;
+    scopeUsers?: boolean;
+}
+
+export interface OnMessageSettings extends OnEventSettings {
+    DM?: boolean;
+}
+
 export class ScriptBuilder {
 
     private _enabled: boolean = true;
@@ -35,16 +44,22 @@ export class ScriptBuilder {
 
     private _guilds?: ServerConfig[] | "global";
     private _isGlobal?: boolean;
-    private _usersList?: {
-        whitelist: string[] | null;
-        blacklist: string[] | null;
-    };
+    private _usersList: {
+        whitelist: string[] | undefined;
+        blacklist: string[] | undefined;
+    } = {
+            whitelist: [], blacklist: []
+        };
     public get guilds() { return this._guilds; }
     public get isGlobal() { return this._isGlobal; }
     public get usersList() { return this._usersList; }
 
     //slash
     private _onSlash?: (interaction: ChatInputCommandInteraction) => Promise<void>;
+    private _onSlashSettings: OnEventSettings = {
+        scopeGuilds: true,
+        scopeUsers: true
+    };
     private _slashDeployData?: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
     public get onSlash() {
         if (!this._onSlash) return;
@@ -58,8 +73,9 @@ export class ScriptBuilder {
             await interactionLog(username, commandName, options, interaction.user.id);
 
             if (!this.checkSetup()) return;
-            if (this.guilds !== "global" && !this.guilds!.map(guild => guild.serverId).includes(interaction.guildId!)) return;
-            const script = this as ScriptBuilder & { client: Client, guilds: ServerConfig[] | "global" };
+
+            if (!this.checkSettings(this._onSlashSettings, interaction.user.id, interaction.guildId ?? undefined)) return;
+
             await this._onSlash!(interaction);
         }
     }
@@ -72,6 +88,10 @@ export class ScriptBuilder {
     }
     // context
     private _onContext?: (interaction: (MessageContextMenuCommandInteraction | UserContextMenuCommandInteraction)) => Promise<void>;
+    private _onContextSettings: OnEventSettings = {
+        scopeGuilds: true,
+        scopeUsers: true
+    };
     private _contextDeployData?: ContextMenuCommandBuilder;
     public get onContext() {
         if (!this._onContext) return undefined;
@@ -85,7 +105,9 @@ export class ScriptBuilder {
             await interactionLog(username, commandName, options, interaction.user.id);
 
             if (!this.checkSetup()) return;
-            if (this.guilds !== "global" && !this.guilds!.map(guild => guild.serverId).includes(interaction.guildId!)) return;
+
+            if (!this.checkSettings(this._onContextSettings, interaction.user.id, interaction.guildId ?? undefined)) return;
+
             await this._onContext!(interaction);
         }
     }
@@ -104,11 +126,20 @@ export class ScriptBuilder {
     }
     //message
     private _onMessage?: (message: Message) => Promise<void>;
+    private _onMessageSettings: OnMessageSettings = {
+        scopeGuilds: true,
+        scopeUsers: true,
+        DM: false
+    };
     public get onMessage() {
         if (!this._onMessage) return undefined;
         return async (message: Message) => {
+
             if (!this.checkSetup()) return;
-            if (this.guilds !== "global" && !this.guilds!.map(guild => guild.serverId).includes(message.guildId!)) return;
+
+            if (!this.checkSettings(this._onMessageSettings, message.author.id, message.guild?.id)) return;
+            if (!this._onMessageSettings.DM && message.channel.isDMBased()) return;
+
             await this._onMessage!(message);
         };
     }
@@ -117,6 +148,10 @@ export class ScriptBuilder {
     }
     //button
     private _onButton?: (interaction: ButtonInteraction) => Promise<void>;
+    private _onButtonSettings: OnEventSettings = {
+        scopeGuilds: true,
+        scopeUsers: true
+    };
     private _isValidButtonId?: (customId: string) => Promise<boolean>;
     public get onButton() {
         if (!this._onButton) return undefined;
@@ -130,6 +165,9 @@ export class ScriptBuilder {
             await interactionLog(username, commandName, options, interaction.user.id);
 
             if (!this.checkSetup()) return;
+            
+            if (!this.checkSettings(this._onButtonSettings, interaction.user.id, interaction.guild?.id)) return;
+
             await this._onButton!(interaction);
         }
     }
@@ -199,14 +237,14 @@ export class ScriptBuilder {
         enabled: boolean,
         guilds: ServerConfig[] | "global",
         usersList?: {
-            whitelist: string[] | null;
-            blacklist: string[] | null;
+            whitelist?: string[] | undefined;
+            blacklist?: string[] | undefined;
         }
     ) {
         this._enabled = enabled;
         this._isGlobal = guilds === "global";
         this._guilds = guilds;
-        this._usersList = usersList ?? { whitelist: null, blacklist: null };
+        this._usersList = { ...this._usersList, ...usersList };
         this._isSetupScopes = true;
         return this;
     }
@@ -227,9 +265,31 @@ export class ScriptBuilder {
         if (!this._enabled) return false;
         return true;
     }
+    private checkSettings(settings: OnEventSettings, authorId: string | undefined, guildId: string | undefined): boolean {
+
+        if (settings.scopeGuilds && guildId
+            && this.guilds !== "global"
+            && !this.guilds!.map(guild => guild.serverId).includes(guildId)) {
+            printE(`Acces to guild ${guildId} not allowed in script ${this._name}`);
+            return false;
+        }
+
+        if (settings.scopeUsers && authorId
+            && (
+                (this._usersList.blacklist && this._usersList.blacklist.includes(authorId))
+                || (this._usersList.whitelist && !this._usersList.whitelist.includes(authorId))
+            )
+        ) {
+            printE(`Acces to user ${authorId} not allowed in script ${this._name}`);
+            return false;
+        }
+
+        return true;
+    }
 
     public addOnSlash(
         options: {
+            settings?: OnEventSettings,
             slashDeployData: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">,
             onSlash: (interaction: ChatInputCommandInteraction) => Promise<void>
         }
@@ -238,6 +298,10 @@ export class ScriptBuilder {
             printE('Slash command name does not match script name. ' + this._name + " != " + options.slashDeployData.name);
             throw new Error();
         }
+        this._onSlashSettings = {
+            ...this._onSlashSettings,
+            ...options.settings
+        };
         this._onSlash = options.onSlash;
         this._slashDeployData = options.slashDeployData;
         return this;
@@ -245,6 +309,7 @@ export class ScriptBuilder {
 
     public addOnContext(
         options: {
+            settings?: OnEventSettings,
             contextDeployData: ContextMenuCommandBuilder,
             onContext: (interaction: (MessageContextMenuCommandInteraction | UserContextMenuCommandInteraction)) => Promise<void>
         }
@@ -253,6 +318,10 @@ export class ScriptBuilder {
             printE('Context command name does not match script name. ' + this._name + " != " + options.contextDeployData.name);
             return this;
         }
+        this._onContextSettings = {
+            ...this._onContextSettings,
+            ...options.settings
+        };
         this._onContext = options.onContext;
         this._contextDeployData = options.contextDeployData;
         return this;
@@ -272,19 +341,29 @@ export class ScriptBuilder {
 
     public addOnMessage(
         options: {
+            settings?: OnMessageSettings,
             onMessage: (message: Message) => Promise<void>
         }
     ) {
+        this._onMessageSettings = {
+            ...this._onMessageSettings,
+            ...options.settings
+        };
         this._onMessage = options.onMessage;
         return this;
     }
 
     public addOnButton(
         options: {
+            settings?: OnEventSettings,
             isValidCustomId: (customId: string) => Promise<boolean>,
             onButton: (interaction: ButtonInteraction) => Promise<void>,
         }
     ) {
+        this._onButtonSettings = {
+            ...this._onButtonSettings,
+            ...options.settings
+        };
         this._onButton = options.onButton;
         this._isValidButtonId = options.isValidCustomId;
         return this;
@@ -329,3 +408,7 @@ export class ScriptBuilder {
 
 
 }
+// TODO prevent reusing event declaration functions.
+// so onSlash can be called only once.
+
+// should check checkSetup only once in index? not in each function.
