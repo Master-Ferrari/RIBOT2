@@ -191,9 +191,10 @@ export function prettySlice(input: string, minLength: number, maxLength: number,
 import { myId } from './../botConfig.json';
 
 export async function interactionLog(username: string, commandName: string, options: string, userId: string) {
+    printD({ username, commandName, options, userId });
     await printL(
         username + format(
-            " /" + commandName + (userId != myId ? options : "")
+            " /" + commandName + (userId == myId ? options : "")
             , { foreground: 'yellow' }
         ) + dateToStr(new Date(), "timeStamp"));
 }
