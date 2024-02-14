@@ -57,8 +57,6 @@ type GroupConfig = {
     });
 
 
-    // printD({ servers: serverList.map(server => [server.serverName, server.serverId]) });
-
     client.once(Events.ClientReady, async () => {
 
         if (process.argv.includes('update')) {
@@ -74,12 +72,9 @@ type GroupConfig = {
             + " the final number of scripts: " + scriptsList.length);
 
         updateAnswer(client);
-        let i = 0;
         scriptsList.forEach(script => {
             if (script.isStart()) {
                 script.onStart();
-                i++;
-                print(i + script.name);
             }
         });
     });
@@ -252,7 +247,6 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
         let commandsNames: string[] = [];
 
         for (const script of server.scripts) {
-            // if script,name is in featureSwitches 
             if (script.name in featureSwitches && !featureSwitches[script.name]) {
                 commandsNames.push(format(((script.isSlash() ? "/" : "")) + script.name, { foreground: 'red', bold: true }));
                 continue;
@@ -299,4 +293,3 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
     await printL(format("Commands deployed!", { foreground: 'white', background: 'blue', bold: true, italic: true }));
 }
 // #endregion
-// fix the long entry
