@@ -64,11 +64,11 @@ type GroupConfig = {
         }
 
         await printL("OnStart:   " + scriptsList.filter(script => script.isStart())
-            .map(script => format(script.name, { foreground: script.enabled ? 'magenta' : 'red', italic: true })).join(", "));
+            .map(script => format(script.name, { foreground: script.enabled ? 'magenta' : 'red', formatting: 'italic' })).join(", "));
         await printL("OnMessgae: " + scriptsList.filter(script => script.isMessage())
-            .map(script => format(script.name, { foreground: 'magenta', italic: true })).join(", "));
+            .map(script => format(script.name, { foreground: 'magenta', formatting: 'italic' })).join(", "));
 
-        await printL(format(`Ready!`, { foreground: 'white', background: 'red', bold: true, italic: true })
+        await printL(format(`Ready!`, { foreground: 'white', background: 'red', formatting: ['italic','bold'] })
             + " the final number of scripts: " + scriptsList.length);
 
         updateAnswer(client);
@@ -80,7 +80,7 @@ type GroupConfig = {
     });
 
     await client.login(ribotToken);
-    await printL(format(`Logged`, { foreground: 'white', background: 'red', bold: true, italic: true })
+    await printL(format(`Logged`, { foreground: 'white', background: 'red', formatting: ['italic','bold'] })
         + ` as ${client.user?.tag}`
         + dateToStr(new Date(), "timeStamp"));
 
@@ -225,7 +225,7 @@ export async function loadScriptsFromDirectories(directoryPath: string = scripts
 
 async function deployCommands(serverList: ServerConfig[], client: Client) {
 
-    await printL(format("Deploying commands", { foreground: 'white', background: 'blue', bold: true, italic: true }));
+    await printL(format("Deploying commands", { foreground: 'white', background: 'blue', formatting: ['italic','bold'] }));
 
     for (const server of serverList) {
 
@@ -234,11 +234,11 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
         const guild = server.serverId ? await fetchGuild(client, server.serverId) : undefined;
         if (server.serverName === "global") {
             await printL("    Server: " + format("global", { foreground: 'yellow', background: 'magenta' }) +
-                " " + format(client.guilds.cache.map(guild => guild.name).join(", "), { foreground: 'magenta', italic: true }));
+                " " + format(client.guilds.cache.map(guild => guild.name).join(", "), { foreground: 'magenta', formatting: 'italic' }));
         } else if (guild) {
             await printL("    Server: " + format(guild.name, { foreground: 'yellow' }));
         } else {
-            await printL("    Server: " + format(`not found (${server.serverName} ${server.serverId})`, { foreground: 'red', bold: true }));
+            await printL("    Server: " + format(`not found (${server.serverName} ${server.serverId})`, { foreground: 'red', formatting: 'bold' }));
             continue;
         }
 
@@ -248,17 +248,17 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
 
         for (const script of server.scripts) {
             if (script.name in featureSwitches && !featureSwitches[script.name]) {
-                commandsNames.push(format(((script.isSlash() ? "/" : "")) + script.name, { foreground: 'red', bold: true }));
+                commandsNames.push(format(((script.isSlash() ? "/" : "")) + script.name, { foreground: 'red', formatting: 'bold' }));
                 continue;
             }
 
             let cmdStr = "";
             if (script.isSlash()) {
                 deployData.push(script.slashDeployData);
-                cmdStr = format("/" + script.name, { foreground: 'green', bold: true });
+                cmdStr = format("/" + script.name, { foreground: 'green', formatting: 'bold' });
             } else if (script.isContext()) {
                 deployData.push(script.contextDeployData);
-                cmdStr = format(script.name, { foreground: 'cyan', bold: true });
+                cmdStr = format(script.name, { foreground: 'cyan', formatting: 'bold' });
             }
             else continue;
 
@@ -267,7 +267,7 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
 
 
         if (server.scripts.length === 0) {
-            await printL('  Commands: ' + format(`no commands`, { foreground: 'red', bold: true }));
+            await printL('  Commands: ' + format(`no commands`, { foreground: 'red', formatting: 'bold' }));
         } else {
             await printL('  Commands: ' + commandsNames.join(", "));
         }
@@ -290,6 +290,6 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
         }
     }
 
-    await printL(format("Commands deployed!", { foreground: 'white', background: 'blue', bold: true, italic: true }));
+    await printL(format("Commands deployed!", { foreground: 'white', background: 'blue', formatting: ['italic','bold'] }));
 }
 // #endregion

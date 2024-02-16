@@ -24,7 +24,7 @@ export const script = new ScriptBuilder({
                 await updateReactions({ reactions: ['☠️', emoji], msg: reply, client: script.client! });
                 await wait(300);
             }
-            print(format("удалил)\n" + message.author + ": " + message.content + " " + message.attachments.map(a => a.url).join(" "), { bold: true, foreground: 'green' }));
+            print(format("удалил)\n" + message.author + ": " + message.content + " " + message.attachments.map(a => a.url).join(" "), {formatting:'bold', foreground: 'green' }));
             reply.delete();
             message.delete();
             return;

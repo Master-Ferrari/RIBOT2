@@ -4,86 +4,123 @@ import * as path from 'path';
 
 const logPath = path.join(__dirname, '../../log');
 
-export type Color = 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white'
+//#region ansi format()
+export type Color = 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' |
+    'brightBlack' | 'brightRed' | 'brightGreen' | 'brightYellow' |
+    'brightBlue' | 'brightMagenta' | 'brightCyan' | 'brightWhite';
 
-type StyleOptions = {
-    foreground?: Color;
-    background?: Color
-    | 'brightBlack' | 'brightRed' | 'brightGreen' | 'brightYellow' | 'brightBlue'
-    | 'brightMagenta' | 'brightCyan' | 'brightWhite' | 'brightGray';
-    bold?: boolean;
-    italic?: boolean;
+export type formatting = 'bold' | 'italic' | 'underline' | 'dim';
+
+type Style = {
+    foreground?: Color | number | string;
+    background?: Color | number | string;
+    formatting?: formatting[] | formatting;
 };
 
-const ansiStyles = {
-    foreground: {
-        black: '30',
-        red: '31',
-        green: '32',
-        yellow: '33',
-        blue: '34',
-        magenta: '35',
-        cyan: '36',
-        white: '37',
-    },
-    background: {
-        black: '40',
-        red: '41',
-        green: '42',
-        yellow: '43',
-        blue: '44',
-        magenta: '45',
-        cyan: '46',
-        white: '47',
-        brightBlack: '90',
-        brightRed: '91',
-        brightGreen: '92',
-        brightYellow: '93',
-        brightBlue: '94',
-        brightMagenta: '95',
-        brightCyan: '96',
-        brightWhite: '97',
-        brightGray: '37',
-    },
-    bold: '1',
-    italic: '3',
-    reset: '0',
+const colorMap = {
+    black: '0', red: '1', green: '2', yellow: '3',
+    blue: '4', magenta: '5', cyan: '6', white: '7',
+    brightBlack: '8', brightRed: '9', brightGreen: '10', brightYellow: '11',
+    brightBlue: '12', brightMagenta: '13', brightCyan: '14', brightWhite: '15'
 };
 
-export function format(text: string, options: StyleOptions): string {
-    let styleCodes: string[] = [];
+function ansiColor(input: Color | number | string): string {
+    // 'r*,g*,b*'
+    // 'R***,G***,B***'
+    // '**%'
+    // ***
+    // 'colorName'
+
+    let color = '';
+
+    const reg_0to255 = '([1-9]?[0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])';
+    const reg_0to5 = '([0-5])';
+
+    const Reg_rgb = new RegExp(`^r${reg_0to5},g${reg_0to5},b${reg_0to5}$`);
+    const Reg_RGB = new RegExp(`^R${reg_0to255},G${reg_0to255},B${reg_0to255}$`);
+    const Reg_prc = new RegExp(`^(100|[1-9][0-9]|[0-9])%$`);
+
+
+    if (typeof input === 'number') { // ***
+        if (input < 0 || input > 255) {
+            printE(new Error('Incorrect format() parameters. Expected a number from 0 to 255.'));
+            color = '5;15m';
+        }
+        else {
+            color = '5;' + input + 'm';
+        }
+    } else if (input in colorMap) { // 'colorName'
+        color = '5;' + colorMap[input as Color] + 'm';
+    } else { // 'r*,g*,b*'
+        const rgb = input.match(Reg_rgb);
+        if (rgb) {
+            const r = parseInt(rgb[1], 10);
+            const g = parseInt(rgb[2], 10);
+            const b = parseInt(rgb[3], 10);
+            color = '5;' + String(16 + (r * 36) + (g * 6) + b) + 'm';
+        } else { // 'R***,G***,B***'
+            const RGB = input.match(Reg_RGB);
+            if (RGB) {
+                const R = parseInt(RGB[1], 10);
+                const G = parseInt(RGB[2], 10);
+                const B = parseInt(RGB[3], 10);
+                color = '2;' + R + ';' + G + ';' + B + 'm';
+            } else { // '**%' 
+                const prc = input.match(Reg_prc);
+                if (prc) {
+                    color = '2;'
+                    const p = parseInt(prc[1], 10);
+                    if (p === 100) color += 231;
+                    if (p === 0) color += 16;
+                    color += Math.round((p - 3) / 4) + 232 + 'm';
+                } else { // error
+                    printE(`Incorrect format() parameters. 
+Expected RGB format \`r*,g*,b*\`, \`**%\`, \`R***,G***,B***\`, *** or \`colorName\`
+(* is a digit from 0 to 5)
+(** is a digit from 0 to 100)
+(*** is a digit from 0 to 255)
+(colorName is a color name like 'red')`);
+                    color = '5;15m';
+                }
+            }
+        }
+    }
+    return color;
+}
+
+const formattingMap = {
+    bold: '1', italic: '3', underline: '4', dim: '2'
+};
+
+export function format(text: string, options: Style): string {
+    let result = '';
 
     if (options.foreground) {
-        styleCodes.push(ansiStyles.foreground[options.foreground]);
+        const colorCode = ansiColor(options.foreground);
+        result += '\x1b[38;' + colorCode;
     }
 
     if (options.background) {
-        styleCodes.push(ansiStyles.background[options.background]);
+        const colorCode = ansiColor(options.background);
+        result += '\x1b[48;' + colorCode;
     }
 
-    if (options.bold) {
-        styleCodes.push(ansiStyles.bold);
+    if (options.formatting) {
+        const formatCodes = Array.isArray(options.formatting) ? options.formatting : [options.formatting];
+        for (const format of formatCodes) {
+            result += '\x1b[' + formattingMap[format] + 'm';
+        }
     }
 
-    if (options.italic) {
-        styleCodes.push(ansiStyles.italic);
-    }
-
-    const styleStart = styleCodes.length > 0 ? `\x1b[${styleCodes.join(';')}m` : '';
-    const styleEnd = styleCodes.length > 0 ? `\x1b[${ansiStyles.reset}m` : '';
-
-    // return text;
-    return styleStart + text + styleEnd;
+    result += text + '\x1b[0m';
+    return result;
 }
+//#endregion
 
+//#region print*()
 export function print(text: any = "", newLine: boolean = true): string {
-    // console.log(newLine);
     text = "[0m" + String(text) + (newLine ? '\n' : "");
-    // process.stdout.write(text);
     process.stdout.write(text);
-    // if(newLine) {
-    //     process.stdout.write('\n');
-    // }
     return text;
 }
 
@@ -102,20 +139,17 @@ export function printD(obj: any, options: PrintDOptions = { head: true, depth: 0
     if (options.head && obj && typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj).length === 1) {
         const firstKey = Object.keys(obj)[0]; ``
         print(format(String(typeof obj[firstKey]) + ' ' + firstKey,
-            { foreground: 'black', background: 'blue', bold: true, italic: false }));
+            { foreground: 'black', background: 'blue', formatting: ['bold'] }));
 
         let text = util.inspect(obj[firstKey], { depth: options.depth === 0 ? null : options.depth, colors: true });
         return print(decorateLines(text));
     }
 
-    // print(format(String(typeof obj), { foreground: 'black', background: 'white', bold: true, italic: true }));
     let text = util.inspect(obj, { depth: options.depth === 0 ? null : options.depth, colors: true });
     return print(decorateLines(text));
 }
 
 export async function printL(text: any = "", newLine: boolean = true): Promise<string> {
-    // const logPath = path.resolve(__dirname, '../log');
-    // printD({ text });
     const logString = print(text, newLine);
 
     if (!fs.existsSync(logPath)) {
@@ -138,6 +172,12 @@ export async function printL(text: any = "", newLine: boolean = true): Promise<s
     return logString;
 }
 
+export function printE(msg: any = "", error: any = null): string {
+    return print(format(String(msg) + (error ? '\n' + String(error) : ' '), { foreground: 'red', formatting: ['bold'] }));
+}
+//#endregion
+
+//#region *()
 export function dateToStr(date: Date, style: string = "ddmmyyyy"): string {
     const dd = date.toLocaleDateString("ru-RU", { day: '2-digit' });
     const mm = date.toLocaleDateString("ru-RU", { month: '2-digit' });
@@ -160,11 +200,7 @@ export function dateToStr(date: Date, style: string = "ddmmyyyy"): string {
     if (style === "timeStamp")
         return ` | ${dd}-${mm}-${yyyy} (${hh}:${mn}_${ss})`;
 
-    return ''; // Добавьте возвращаемое значение по умолчанию на случай, если ни одно из условий не выполнено
-}
-
-export function printE(msg: any = "", error: any = null): string {
-    return print(format(String(msg) + (error ? '\n' + String(error) : ' '), { foreground: 'red', bold: true }));
+    return '';
 }
 
 export function prettySlice(input: string, minLength: number, maxLength: number, breakers: string[] = ['\n', '.', ',', ' ']): { start: string, end: string, full: string } {
@@ -191,12 +227,10 @@ export function prettySlice(input: string, minLength: number, maxLength: number,
 import { myId } from './../botConfig.json';
 
 export async function interactionLog(username: string, commandName: string, options: string, userId: string) {
-    printD({ username, commandName, options, userId });
     await printL(
         username + format(
-            " /" + commandName + (userId == myId ? options : "")
+            " /" + commandName + (userId == myId ? " " + options.trim() : "")
             , { foreground: 'yellow' }
         ) + dateToStr(new Date(), "timeStamp"));
 }
-
-// export { print, printD, printL, printE, format, dateToStr };
+//#endregion

@@ -90,7 +90,7 @@ export const script = new ScriptBuilder({
         const scriptsData = await loadScriptsFromDirectories();
 
 
-        await printL(format(`Update!`, { foreground: 'white', background: 'yellow', bold: true, italic: true }));
+        await printL(format(`Update!`, { foreground: 'white', background: 'yellow', formatting: ['italic','bold'] }));
 
         for (const script of scriptsData.scriptsList) {
             if (script.isUpdate()) {

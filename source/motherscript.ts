@@ -19,10 +19,10 @@ function runChildScript(args: string[]) {
 
   child.on('close', (code) => {
     if (code !== 0) {
-      printL(format(`RIBA BOT script exited with code ${code}. Restarting...`, { foreground: 'red', bold: true }));
+      printL(format(`RIBA BOT script exited with code ${code}. Restarting...`, { foreground: 'red', formatting: 'bold' }));
       runChildScript(args);
     } else {
-      printL(format('RIBA BOT script exited successfully.', { foreground: 'green', bold: true }));
+      printL(format('RIBA BOT script exited successfully.', { foreground: 'green', formatting: 'bold' }));
     }
   });
 }
