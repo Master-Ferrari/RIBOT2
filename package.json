@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "npx rimraf ./dist && npx tsc",
     "ribot": "npx rimraf ./dist && npx tsc && node dist/motherscript.js",
     "test": "npx rimraf ./dist && npx tsc && node dist/index.js"
   },
