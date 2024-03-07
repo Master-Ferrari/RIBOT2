@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <editMessage
+        messageLink="https://discord.com/channels/850015807005392907/968834331852300288/1215139204913434638">
+        <content text="Хочешш..?" />
+
+        <buttonRow>
+
+            <button emojiID="919413096676724846" label="В Starcraft к test" style="Success">
+                <roleToggle actionType="roleToggle" roleID="941354809531981845">
+                    <message actionType="sendMsg" type="reply" text="[Теперь ты |Ты больше не ](hasRole)%roleName%!" private="true" />
+                </roleToggle>
+            </button>
+
+        </buttonRow>
+        <buttonRow>
+
+            <button emojiID="919413096676724846" label="В Starcraft к test" style="Success">
+                <roleToggle actionType="roleToggle" roleID="941354809531981845">
+                    <!-- <message actionType="sendMsg" type="reply" text="[Теперь ты |Ты больше не ](hasRole)%roleName%!" private="true" /> -->
+                </roleToggle>
+            </button>
+
+            <button emojiID="919413096676724846" label="В Starcraft к test" style="Success">
+                <roleToggle actionType="roleToggle" roleID="941354809531981845">
+                    <message actionType="sendMsg" type="reply" text="[Теперь ты |Ты больше не ](hasRole)%roleName%!" private="true" />
+                </roleToggle>
+            </button>
+
+        </buttonRow>
+        <buttonRow>
+
+            <button emojiID="919413096676724846" label="В Starcraft к test" style="Success">
+                <roleToggle actionType="roleToggle" roleID="941354809531981845">
+                    <message actionType="sendMsg" type="reply" text="[Теперь ты |Ты больше не ](hasRole)%roleName%!" private="true" />
+                </roleToggle>
+            </button>
+
+        </buttonRow>
+
+    </editMessage>
+</root>
