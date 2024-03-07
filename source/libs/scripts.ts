@@ -274,7 +274,6 @@ export class ScriptBuilder {
         if (settings.scopeGuilds && guildId
             && this.guilds !== "global"
             && !this.guilds!.map(guild => guild.serverId).includes(guildId)) {
-            // printE(`Acces to guild ${guildId} not allowed in script ${this._name}`);
             return false;
         }
 
@@ -284,7 +283,6 @@ export class ScriptBuilder {
                 || (this._usersList.whitelist && !this._usersList.whitelist.includes(authorId))
             )
         ) {
-            // printE(`Acces to user ${authorId} not allowed in script ${this._name}`);
             return false;
         }
 

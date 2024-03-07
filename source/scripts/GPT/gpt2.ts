@@ -1,8 +1,26 @@
-import { AttachmentBuilder, Client, Message, ActionRowBuilder, TextChannel, ButtonComponent, ComponentType, Events, User, PartialUser, PartialMessageReaction, MessageReaction } from 'discord.js';
-import { ButtonBuilder, ButtonStyle, SlashCommandBuilder, MessageCreateOptions, MessageActionRowComponentBuilder, MessageEditOptions } from 'discord.js';
+import {
+    AttachmentBuilder, Client, Message, ActionRowBuilder,
+    TextChannel, ButtonComponent, ComponentType, Events, User,
+    PartialUser, PartialMessageReaction, MessageReaction, ChannelType,
+    StringSelectMenuBuilder, ChannelSelectMenuBuilder
+} from 'discord.js';
+import {
+    ButtonBuilder, ButtonStyle, SlashCommandBuilder,
+    MessageCreateOptions, MessageActionRowComponentBuilder,
+    MessageEditOptions
+} from 'discord.js';
 
-import { print, printD, printL, format, dateToStr, printE, prettySlice, interactionLog } from '../../libs/consoleUtils';
-import { fetchLastNMessages, Fetcher, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings, updateReactions, ScriptScopes } from '../../libs/discordUtils';
+import {
+    print, printD, printL, format, dateToStr, printE,
+    prettySlice, interactionLog
+} from '../../libs/consoleUtils';
+import {
+    fetchLastNMessages, Fetcher, fetchMessage, GuildSetting,
+    fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings,
+    updateReactions, ScriptScopes, ComponentParams, ComponentBuilder,
+    SelectParams, ButtonParams, buildMessage, buildComponents
+} from '../../libs/discordUtils';
+
 import { GPT, History, ModelVersions, gptModels } from '../../libs/gptHandler';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../libs/sqlite';
@@ -13,7 +31,12 @@ const defaultVisionDistance = 15;
 const defaultModel: ModelVersions = "gpt-4-1106-preview";
 let guildSettingS: any;
 
-const buttonNames = { cancel: "GptCancel", say: "GptSay", regenerate: "GptRegenerate", left: "GptLeft", right: "GptRight", load: "GptLoad" };
+const compNames = {
+    cancel: "GptCancel", say: "GptSay", regenerate: "GptRegenerate",
+    left: "GptLeft", right: "GptRight", load: "GptLoad",
+    open: "GptOpen", close: "GptClose",
+    autoChannel: "GptAutoChannel"
+};
 const reactionNames = {
     regenerate: { full: "<:regenerate:1196122410626330624>", name: "regenerate" },
     cancel: { full: "<:cancel:1196070262567882802>", name: "cancel" },
@@ -22,6 +45,8 @@ const reactionNames = {
     right: { full: "<:next:1196070255836012544>", name: "next" },
     wait: { full: "<a:discordloading2:1194652977256992930>", name: "discordloading2" },
     waitFlat: { full: "<a:discordloading:1192816519525183519>", name: "discordloading" },
+    open: { full: "<:peace:1208860404189757441>", name: "peace" },
+    close: { full: "<:peace:1208860404189757441>", name: "peace" },
 }
 
 type msgFiles = { url: string, name: string }[];
@@ -38,13 +63,6 @@ type GptMessageData = {
     deleted: boolean
 };
 
-type ButtomParams = {
-    customId: string,
-    style: ButtonStyle,
-    setdisabled: boolean,
-    emoji: string | undefined,
-    label: string | undefined
-};
 
 type Index = [string | number, string | number];
 
@@ -92,7 +110,7 @@ export const script = new ScriptBuilder({
     })
     .addOnButton({
         isValidCustomId: async (customId: string) => {
-            return Object.values(buttonNames).includes(customId);
+            return Object.values(compNames).includes(customId);
         },
 
         onButton: async (interaction) => {
@@ -105,16 +123,16 @@ export const script = new ScriptBuilder({
                 return;
             }
 
-            if (interaction.customId === buttonNames.cancel) {
+            if (interaction.customId === compNames.cancel) {
                 interaction.message.delete();
                 await GptDbHandler.delete(msgId);
 
-            } else if (interaction.customId === buttonNames.say) {
+            } else if (interaction.customId === compNames.say) {
 
                 let tts = TTSFactory.createTTS();
                 const content = interaction.message.content.replace(/```.*?```/gs, ". код читать не буду. ");
 
-                await interaction.update(Responder.buildLoadingButtonMessage(data, [buttonNames.say], [buttonNames.regenerate, buttonNames.left, buttonNames.right]) as MessageEditOptions);
+                await interaction.update(Responder.buildLoadingButtonMessage(data, [compNames.say], [compNames.regenerate, compNames.left, compNames.right]) as MessageEditOptions);
 
                 tts.send({
                     text: content,
@@ -137,30 +155,42 @@ export const script = new ScriptBuilder({
                     }
                 });
 
-            } else if (interaction.customId === buttonNames.regenerate) {
+            } else if (interaction.customId === compNames.regenerate) {
 
 
                 const lastMessages = Fetcher.messages(interaction.message, script.client!, defaultVisionDistance, "before");
                 const content = askGpt(script.client!, gptModels, await lastMessages, defaultVisionDistance, defaultModel);
 
                 if (data.deleted) return;
-                await interaction.update(Responder.buildLoadingButtonMessage(data, [buttonNames.regenerate], [buttonNames.say, buttonNames.left, buttonNames.right]) as MessageEditOptions);
+                await interaction.update(Responder.buildLoadingButtonMessage(data, [compNames.regenerate], [compNames.say, compNames.left, compNames.right]) as MessageEditOptions);
 
                 data = await GptDbHandler.anotherPage(msgId, await content);
                 if (data.deleted) return;
                 await interaction.message.edit(Responder.buildDoneMessage(data) as MessageEditOptions);
 
-            } else if (interaction.customId === buttonNames.left) {
+            } else if (interaction.customId === compNames.left) {
 
                 data = await GptDbHandler.loadPage(data.messageId, "left");
                 if (data.deleted) return;
                 await interaction.update(Responder.buildDoneMessage(data) as MessageEditOptions);
 
-            } else if (interaction.customId === buttonNames.right) {
+            } else if (interaction.customId === compNames.right) {
 
                 data = await GptDbHandler.loadPage(data.messageId, "right");
                 if (data.deleted) return;
                 await interaction.update(Responder.buildDoneMessage(data) as MessageEditOptions);
+
+            } else if (interaction.customId === compNames.open) {
+
+                data = await GptDbHandler.load(data.messageId);
+                if (data!.deleted) return;
+                await interaction.update(Responder.buildOptionsMessage(data!) as MessageEditOptions);
+
+            } else if (interaction.customId === compNames.close) {
+
+                data = await GptDbHandler.load(data.messageId);
+                if (data!.deleted) return;
+                await interaction.update(Responder.buildDoneMessage(data!) as MessageEditOptions);
 
             }
         }
@@ -180,11 +210,11 @@ export const script = new ScriptBuilder({
         }
     }).addOnMessage({
         settings: {
-          ignoreDM: false  
+            ignoreDM: false
         },
         onMessage: async (userMessage) => {
 
-            if( !userMessage.channel.isDMBased() &&
+            if (!userMessage.channel.isDMBased() &&
                 userMessage.guildId &&
                 guildSettingS[userMessage.guildId]?.gptChannelId !== userMessage.channelId) return;
 
@@ -207,128 +237,133 @@ export const script = new ScriptBuilder({
 
 class Responder {
 
-    // #region buttons
-    private static btnInfo = {
+    // #region components
+    private static compInfo = {
         cancel: {
-            customId: buttonNames.cancel,
+            type: 2,
+            customId: compNames.cancel,
             style: ButtonStyle.Secondary,
-            setdisabled: false,
+            disabled: false,
             emoji: reactionNames.cancel.full,
             label: undefined,
-        },
+        } as ButtonParams,
         regenerate: {
-            customId: buttonNames.regenerate,
+            type: 2,
+            customId: compNames.regenerate,
             style: ButtonStyle.Secondary,
-            setdisabled: false,
+            disabled: false,
             emoji: reactionNames.regenerate.full,
             label: undefined,
-        },
+        } as ButtonParams,
         say: {
-            customId: buttonNames.say,
+            type: 2,
+            customId: compNames.say,
             style: ButtonStyle.Secondary,
-            setdisabled: false,
+            disabled: false,
             emoji: reactionNames.say.full,
             label: undefined,
-        },
+        } as ButtonParams,
         left: {
-            customId: buttonNames.left,
+            type: 2,
+            customId: compNames.left,
             style: ButtonStyle.Secondary,
-            setdisabled: false,
+            disabled: false,
             emoji: reactionNames.left.full,
             label: undefined,
-        },
+        } as ButtonParams,
         right: {
-            customId: buttonNames.right,
+            type: 2,
+            customId: compNames.right,
             style: ButtonStyle.Secondary,
-            setdisabled: false,
+            disabled: false,
             emoji: reactionNames.right.full,
             label: undefined,
-        },
-        index(index: Index): ButtomParams {
+        } as ButtonParams,
+        index(index: Index): ButtonParams {
             return {
+                type: 2,
                 customId: "GptIndex",
                 style: ButtonStyle.Secondary,
-                setdisabled: true,
+                disabled: true,
                 emoji: undefined,
                 label: `${index[0]}/${index[1]}`,
             };
         },
-        load(customId: string = buttonNames.load): ButtomParams {
+        load(customId: string = compNames.load): ButtonParams {
             return {
+                type: 2,
                 customId: customId,
                 style: ButtonStyle.Secondary,
-                setdisabled: true,
+                disabled: true,
                 emoji: reactionNames.waitFlat.full,
                 label: undefined,
             };
-        }
+        },
+        open: {
+            type: 2,
+            customId: compNames.open,
+            style: ButtonStyle.Secondary,
+            disabled: false,
+            emoji: reactionNames.open.full,
+            label: undefined,
+        } as ButtonParams,
+        close: {
+            type: 2,
+            customId: compNames.close,
+            style: ButtonStyle.Secondary,
+            disabled: false,
+            emoji: reactionNames.close.full,
+            label: undefined,
+        } as ButtonParams,
+        autoChannel: {
+            type: 8,
+            customId: compNames.autoChannel,
+            disabled: false,
+            placeholder: undefined,
+            channelTypes: [ChannelType.GuildVoice],
+        } as SelectParams,
     };
 
-    private static buildBtns(data: ButtomParams[][]): ButtonBuilder[][] {
-        return data.map(row => {
-            return row.map(btnInfo => {
-                const button = new ButtonBuilder()
-                    .setCustomId(btnInfo.customId)
-                    .setStyle(btnInfo.style)
-                    .setDisabled(btnInfo.setdisabled);
-                if (btnInfo.emoji) button.setEmoji(btnInfo.emoji);
-                if (btnInfo.label) button.setLabel(btnInfo.label);
-                return button;
-            });
-        });
-    }
-
-    private static buildDefaultBtns(index: Index): ButtomParams[][] {
-        const btnsInfo: ButtomParams[][] = [
-            [this.btnInfo.cancel, this.btnInfo.say, this.btnInfo.regenerate]
+    private static buildDefaultBtns(index: Index): ButtonParams[][] {
+        const btnsInfo: ButtonParams[][] = [
+            [this.compInfo.cancel, this.compInfo.say, this.compInfo.regenerate, this.compInfo.open]
         ];
         if (Number(index[1]) > 1) {
-            const indexbutton = this.btnInfo.index(index);
-            btnsInfo.push([this.btnInfo.left, indexbutton, this.btnInfo.right]);
+            const indexbutton = this.compInfo.index(index);
+            btnsInfo.push([this.compInfo.left, indexbutton, this.compInfo.right]);
         }
         return btnsInfo;
     }
-    // #endregion
 
-
-    private static buildMessage(options: MessageCreateOptions, components: ButtonBuilder[][]): MessageCreateOptions | MessageEditOptions {
-
-        let rows: Array<ActionRowBuilder<MessageActionRowComponentBuilder>> = [];
-
-        components.forEach(buttons => {
-            const row = new ActionRowBuilder() as ActionRowBuilder<MessageActionRowComponentBuilder>;
-            row.addComponents(buttons);
-            rows.push(row);
-        })
-
-        return {
-            ...options,
-            components: rows
-        }
+    private static buildAdditionalBtns(): ComponentParams[][] {
+        const compsInfo: ComponentParams[][] = [];
+        compsInfo.push([this.compInfo.load('1'), this.compInfo.load('2'), this.compInfo.load('3'), this.compInfo.close]);
+        compsInfo.push([this.compInfo.autoChannel]);
+        return compsInfo;
     }
+    // #endregion
 
     public static buildLoadingMessage(): MessageCreateOptions | MessageEditOptions {
 
-        const btns = this.buildBtns([[this.btnInfo.cancel]]);
+        const btns = buildComponents([[this.compInfo.cancel]]);
 
-        return this.buildMessage({ content: reactionNames.wait.full }, btns);
+        return buildMessage({ content: reactionNames.wait.full }, btns);
 
     }
 
-
     public static buildLoadingButtonMessage(data: GptMessageData, loadButtonIds: string[], disabledButtonIds?: string[]): MessageCreateOptions | MessageEditOptions {
 
-        let btnsInfo: ButtomParams[][] = this.buildDefaultBtns([(data.currentIndex + 1), (data.answers.length)]);
-        btnsInfo = btnsInfo.map(row => {
+        let compsInfo: ButtonParams[][] = this.buildDefaultBtns([(data.currentIndex + 1), (data.answers.length)]);
+        compsInfo = compsInfo.map(row => {
             return row.map(button => {
-                return loadButtonIds.includes(button.customId) ? this.btnInfo.load(button.customId) : button;
+                return loadButtonIds.includes(button.customId) ? this.compInfo.load(button.customId) : button;
             });
         })
 
         if (disabledButtonIds) {
-            btnsInfo = btnsInfo.map(row => {
+            compsInfo = compsInfo.map(row => {
                 return row.map(button => {
-                    return disabledButtonIds.includes(button.customId) ? { ...button, setdisabled: true } : button;
+                    return disabledButtonIds.includes(button.customId) ? { ...button, disabled: true } : button;
                 });
             })
         }
@@ -337,25 +372,36 @@ class Responder {
             return new AttachmentBuilder(file.url, { name: file.name });
         });
 
-        const btns = this.buildBtns(btnsInfo);
-        return this.buildMessage({ content: data.answers[data.currentIndex].content, files }, btns);
+        const btns = buildComponents(compsInfo);
+        return buildMessage({ content: data.answers[data.currentIndex].content, files }, btns);
     }
 
     public static buildDoneMessage(data: GptMessageData | string): MessageCreateOptions | MessageEditOptions {
 
         if (typeof data === "string") {
-            const btnsInfo: ButtomParams[][] = this.buildDefaultBtns([1, 1]);
-            const btns = this.buildBtns(btnsInfo);
-            return this.buildMessage({ content: data }, btns);
+            const btnsInfo: ButtonParams[][] = this.buildDefaultBtns([1, 1]);
+            const btns = buildComponents(btnsInfo);
+            return buildMessage({ content: data }, btns);
         };
 
         const files = data.answers[data.currentIndex].files.map(file => {
             return new AttachmentBuilder(file.url, { name: file.name });
         });
 
-        const btnsInfo: ButtomParams[][] = this.buildDefaultBtns([(data.currentIndex + 1), (data.answers.length)]);
-        const btns = this.buildBtns(btnsInfo);
-        return this.buildMessage({ content: data.answers[data.currentIndex].content, files }, btns);
+        const btnsInfo: ButtonParams[][] = this.buildDefaultBtns([(data.currentIndex + 1), (data.answers.length)]);
+        const btns = buildComponents(btnsInfo);
+        return buildMessage({ content: data.answers[data.currentIndex].content, files }, btns);
+    }
+
+    public static buildOptionsMessage(data: GptMessageData): MessageCreateOptions | MessageEditOptions {
+
+        const files = data.answers[data.currentIndex].files.map(file => {
+            return new AttachmentBuilder(file.url, { name: file.name });
+        });
+
+        const btnsInfo: ComponentParams[][] = this.buildAdditionalBtns();
+        const btns = buildComponents(btnsInfo);
+        return buildMessage({ content: data.answers[data.currentIndex].content, files }, btns);
     }
 
 }

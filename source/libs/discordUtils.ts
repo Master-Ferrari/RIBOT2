@@ -1,8 +1,15 @@
-import { Client, Message, TextChannel, Guild, GuildBasedChannel, WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable, EmbedBuilder, FetchMessagesOptions } from 'discord.js';
+import {
+    Client, Message, TextChannel, Guild, GuildBasedChannel,
+    WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable,
+    EmbedBuilder, FetchMessagesOptions, ButtonStyle, ChannelType, ButtonBuilder,
+    ChannelSelectMenuBuilder, MessageCreateOptions, MessageEditOptions,
+    MessageActionRowComponentBuilder, ActionRowBuilder
+} from 'discord.js';
+
 import { print, printD, printE, printL, format, dateToStr } from './consoleUtils';
 import Database from "./sqlite"
 
-
+//#region TYPES
 export type ScriptScopes = {
     global: boolean;
     guilds: Array<string>;
@@ -29,8 +36,33 @@ export function completeGuildSettings(partial: Partial<GuildSetting>): GuildSett
     };
 
     return { ...defaultValues, ...partial };
-}
+};
 
+export type ButtonParams = {
+    type: 2,
+    customId: string,
+    style: ButtonStyle,
+    disabled: boolean,
+    emoji: string | undefined,
+    label: string | undefined
+};
+
+export type SelectParams = {
+    type: 8,
+    customId: string,
+    channelTypes: ChannelType[],
+    placeholder: string | undefined,
+    disabled: boolean,
+};
+
+export type ComponentParams = (ButtonParams | SelectParams);
+export type ComponentRow = ComponentParams[];
+export type ComponentsData = ComponentRow[];
+
+export type ComponentBuilder = (ButtonBuilder | ChannelSelectMenuBuilder);
+//#endregion
+
+//#region database
 export async function getSettings(settings: Array<keyof GuildSetting>, db: Database, guildId: string): Promise<GuildSetting | string> {
 
     const dbData = await db.getJSON('guildSettings', String(guildId));
@@ -46,6 +78,73 @@ export async function getSettings(settings: Array<keyof GuildSetting>, db: Datab
 
     return completedData;
 }
+//#endregion
+
+//#region webhooks
+
+export type WebhookSend = {
+    content?: string | undefined;
+    embeds?: Array<EmbedBuilder> | undefined;
+    channelId: string;
+    guildId: string;
+    webhookUrl: string;
+    username?: string;
+    avatarURL?: string;
+    client: Client;
+    files?: Array<string>;
+};
+
+export async function sendWebhookMsg(params: WebhookSend): Promise<Message> {
+    const { client, webhookUrl, content, embeds, channelId, guildId, username, avatarURL, files } = params;
+
+    const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
+
+    const webhook = await client.fetchWebhook(id, token);
+
+    if (channelId && webhook.channelId !== channelId) {
+        await webhook.edit({ channel: channelId });
+    }
+
+    const guild = await client.guilds.fetch(guildId);
+    if (!guild) throw new Error('Guild not found');
+
+    const msg = await webhook.send({
+        content: content || undefined,
+        embeds: embeds || undefined,
+        username: username || undefined,
+        avatarURL: avatarURL || undefined,
+        files: files || undefined
+    });
+
+    return msg;
+}
+
+export async function editWebhookMsg(messageId: string, params: WebhookSend): Promise<Message> {
+    const { client, webhookUrl, content, embeds, channelId, guildId, username, avatarURL, files } = params;
+
+    const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
+
+    const webhook = await client.fetchWebhook(id, token);
+
+    if (channelId && webhook.channelId !== channelId) {
+        await webhook.edit({ channel: channelId });
+    }
+
+    const guild = await client.guilds.fetch(guildId);
+    if (!guild) throw new Error('Guild not found');
+
+    const msg = await webhook.editMessage(messageId, ({
+        content: content || undefined,
+        embeds: embeds || undefined,
+        files: files || undefined
+    }));
+
+    return msg;
+}
+
+//#endregion
+
+//#region old fetch functions
 
 export async function findMessage(channelId: string, userId: string, content: string, client: Client): Promise<Message | null> {
     const channel = await client.channels.fetch(channelId);
@@ -126,68 +225,6 @@ export async function fetchLastNMessages(guildId: string, channelId: string, n: 
     }
 }
 
-export type WebhookSend = {
-    content?: string | undefined;
-    embeds?: Array<EmbedBuilder> | undefined;
-    channelId: string;
-    guildId: string;
-    webhookUrl: string;
-    username?: string;
-    avatarURL?: string;
-    client: Client;
-    files?: Array<string>;
-};
-
-export async function sendWebhookMsg(params: WebhookSend): Promise<Message> {
-    const { client, webhookUrl, content, embeds, channelId, guildId, username, avatarURL, files } = params;
-
-    const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
-
-    const webhook = await client.fetchWebhook(id, token);
-
-    if (channelId && webhook.channelId !== channelId) {
-        await webhook.edit({ channel: channelId });
-    }
-
-    const guild = await client.guilds.fetch(guildId);
-    if (!guild) throw new Error('Guild not found');
-
-    const msg = await webhook.send({
-        content: content || undefined,
-        embeds: embeds || undefined,
-        username: username || undefined,
-        avatarURL: avatarURL || undefined,
-        files: files || undefined
-    });
-
-    return msg;
-}
-
-export async function editWebhookMsg(messageId: string, params: WebhookSend): Promise<Message> {
-    const { client, webhookUrl, content, embeds, channelId, guildId, username, avatarURL, files } = params;
-
-    const [id, token] = webhookUrl.replace('https://discord.com/api/webhooks/', '').split('/');
-
-    const webhook = await client.fetchWebhook(id, token);
-
-    if (channelId && webhook.channelId !== channelId) {
-        await webhook.edit({ channel: channelId });
-    }
-
-    const guild = await client.guilds.fetch(guildId);
-    if (!guild) throw new Error('Guild not found');
-
-    const msg = await webhook.editMessage(messageId, ({
-        content: content || undefined,
-        embeds: embeds || undefined,
-        files: files || undefined
-    }));
-
-    return msg;
-}
-
-
-
 export async function fetchEventById(client: Client, guildId: string, eventId: string): Promise<GuildScheduledEvent | null> {
     try {
         const guild = await client.guilds.fetch(guildId);
@@ -250,12 +287,15 @@ export async function updateReactions({ reactions, client, msg }: updateReaction
     }
 }
 
+//#endregion
 
+//#region fetcher
 
 type MessageInfo = Message
     | {
-        messageId: string;
-        channel: ChannelInfo;
+        messageLink?: string;
+        messageId?: string;
+        channel?: ChannelInfo;
     };
 
 type ChannelInfo = TextChannel
@@ -310,13 +350,37 @@ export class Fetcher {
             return undefined;
         }
     }
-
     public static async message(message: MessageInfo, client: Client): Promise<Message | undefined> {
         try {
             if (message instanceof Message) {
                 return message;
             }
-            if (message.messageId) {
+            if (message.messageLink) {
+                const regex = /channels\/(\d+|@me)\/(\d+)\/(\d+)/;
+                const match = message.messageLink.match(regex);
+
+                if (match) {
+                    const guildId = match[1];
+                    const channelId = match[2];
+                    const messageId = match[3];
+
+                    if (guildId == '@me') { // DM
+                        const channel = await client.users.createDM(channelId);
+                        if (!channel) throw new Error(`DM channel with ID ${channelId} not found`);
+                        return channel.messages.fetch(messageId);
+                    } else {
+                        const guild = await client.guilds.fetch(guildId);
+                        if (!guild) throw new Error(`Guild with ID ${guildId} not found`);
+                        const channel = guild.channels.cache.get(channelId) as TextChannel;
+                        if (!channel) throw new Error(`Channel with ID ${channelId} not found in guild with ID ${guildId}`);
+                        return channel.messages.fetch(messageId);
+                    }
+
+                } else {
+                    throw new Error(`Invalid message link: ${message.messageLink}`);
+                }
+
+            } else if (message.messageId && message.channel) {
                 if ('channel' in message) {
                     const channel = await Fetcher.channel(message.channel, client);
                     if (channel) {
@@ -324,7 +388,9 @@ export class Fetcher {
                     }
                 }
             }
-            return undefined;
+
+            throw new Error(`Invalid message info: ${JSON.stringify(message)}`);
+
         } catch (error) {
             printE('Error fetching message:', error);
             return undefined;
@@ -338,7 +404,8 @@ export class Fetcher {
 
             let channel: TextChannel | undefined;
             let msg: Message | undefined;
-            if (messageOrChannel instanceof Message || 'messageId' in messageOrChannel) {
+            messageOrChannel
+            if (messageOrChannel instanceof Message || 'messageLink' in messageOrChannel || 'messageId' in messageOrChannel || 'channel' in messageOrChannel) {
                 msg = await Fetcher.message(messageOrChannel, client);
                 if (!msg) return [];
                 channel = msg.channel as TextChannel;
@@ -351,11 +418,10 @@ export class Fetcher {
                     // before: relative === "after" ? msg.id : undefined
                 });
                 const lastMessages = messages.map(m => m);
-                // printD({ messages: messages.map(m => m.content).reverse() });
                 return lastMessages;
             }
             else {
-                channel = await Fetcher.channel(messageOrChannel, client);
+                channel = await Fetcher.channel(messageOrChannel as ChannelInfo, client);
                 if (!channel) return [];
                 return (await channel.messages.fetch({ limit: n })).map(m => m);
             }
@@ -366,13 +432,49 @@ export class Fetcher {
         }
     }
 
-    // public static async fetchLastMessage(channel: TextChannel, client: Client): Promise<Message | null> {
-    //     try {
-    //         const messages = await channel.messages.fetch({ limit: 1 });
-    //         return messages.first() || null;
-    //     } catch (error) {
-    //         console.error('Error fetching messages:', error);
-    //         return null;
-    //     }
-    // }
 }
+
+//#endregion
+
+//#region message builder
+export function buildMessage(options: MessageCreateOptions, components: ComponentBuilder[][]): MessageCreateOptions | MessageEditOptions {
+
+    let rows: Array<ActionRowBuilder<MessageActionRowComponentBuilder>> = [];
+
+    components.forEach(buttons => {
+        const row = new ActionRowBuilder() as ActionRowBuilder<MessageActionRowComponentBuilder>;
+        row.addComponents(buttons);
+        rows.push(row);
+    })
+
+    return {
+        ...options,
+        components: rows
+    }
+}
+
+export function buildComponents(data: ComponentParams[][]): ComponentBuilder[][] {
+    return data.map(row => {
+        return row.map(btnInfo => {
+            if (btnInfo.type === 2) {
+                const button = new ButtonBuilder()
+                    .setCustomId(btnInfo.customId)
+                    .setStyle(btnInfo.style)
+                    .setDisabled(btnInfo.disabled);
+                if (btnInfo.emoji) button.setEmoji(btnInfo.emoji);
+                if (btnInfo.label) button.setLabel(btnInfo.label);
+                return button;
+            } else if (btnInfo.type === 8) {
+                {
+                    const select = new ChannelSelectMenuBuilder()
+                        .setCustomId(btnInfo.customId)
+                        .setDisabled(btnInfo.disabled);
+                    if (btnInfo.placeholder) select.setPlaceholder(btnInfo.placeholder);
+                    return select;
+                }
+            }
+        }).filter(x => x !== undefined) as ComponentBuilder[];
+    });
+}
+
+//#endregion
