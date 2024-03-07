@@ -56,7 +56,6 @@ type GroupConfig = {
 
     });
 
-
     client.once(Events.ClientReady, async () => {
 
         if (process.argv.includes('update')) {
@@ -68,34 +67,39 @@ type GroupConfig = {
         await printL("OnMessgae: " + scriptsList.filter(script => script.isMessage())
             .map(script => format(script.name, { foreground: 'magenta', formatting: 'italic' })).join(", "));
 
-        await printL(format(`Ready!`, { foreground: 'white', background: 'red', formatting: ['italic','bold'] })
+        await printL(format(`Ready!`, { foreground: 'white', background: 'red', formatting: ['italic', 'bold'] })
             + " the final number of scripts: " + scriptsList.length);
 
         updateAnswer(client);
-        scriptsList.forEach(script => {
+        const startPromises = scriptsList.map(script => {
             if (script.isStart()) {
-                script.onStart();
+                return script.onStart();
             }
+            return Promise.resolve();
         });
+
+        await Promise.all(startPromises); //wait for all onStart to be done
+
+        client.on('interactionCreate', async interaction => {
+            scriptsList.forEach(script => {
+                script.interactionHandler(interaction);
+            });
+        });
+
+        client.on('messageCreate', async message => {
+            scriptsList.forEach(script => {
+                if (script.isMessage())
+                    script.onMessage(message);
+            })
+        });
+
     });
 
     await client.login(ribotToken);
-    await printL(format(`Logged`, { foreground: 'white', background: 'red', formatting: ['italic','bold'] })
+    await printL(format(`Logged`, { foreground: 'white', background: 'red', formatting: ['italic', 'bold'] })
         + ` as ${client.user?.tag}`
         + dateToStr(new Date(), "timeStamp"));
 
-    client.on('interactionCreate', async interaction => {
-        scriptsList.forEach(script => {
-            script.interactionHandler(interaction);
-        });
-    });
-
-    client.on('messageCreate', async message => {
-        scriptsList.forEach(script => {
-            if (script.isMessage())
-                script.onMessage(message);
-        })
-    });
 
 })();
 
@@ -225,7 +229,7 @@ export async function loadScriptsFromDirectories(directoryPath: string = scripts
 
 async function deployCommands(serverList: ServerConfig[], client: Client) {
 
-    await printL(format("Deploying commands", { foreground: 'white', background: 'blue', formatting: ['italic','bold'] }));
+    await printL(format("Deploying commands", { foreground: 'white', background: 'blue', formatting: ['italic', 'bold'] }));
 
     for (const server of serverList) {
 
@@ -290,6 +294,6 @@ async function deployCommands(serverList: ServerConfig[], client: Client) {
         }
     }
 
-    await printL(format("Commands deployed!", { foreground: 'white', background: 'blue', formatting: ['italic','bold'] }));
+    await printL(format("Commands deployed!", { foreground: 'white', background: 'blue', formatting: ['italic', 'bold'] }));
 }
 // #endregion
