@@ -302,13 +302,13 @@ export const script = new ScriptBuilder({
     },
 }).addOnButton({
     isValidCustomId: async (customId) => {
-        commander.commandMessages.forEach((commandMessage) => {
-            commandMessage.components.forEach((row) => {
-                row.forEach((btn) => {
+        for (const commandMessage of commander.commandMessages) {
+            for (const row of commandMessage.components) {
+                for (const btn of row) {
                     if (btn.customId === customId) return true;
-                })
-            })
-        })
+                }
+            }
+        }
         return false;
     },
     onButton: async (interaction) => {
