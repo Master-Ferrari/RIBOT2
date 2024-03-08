@@ -326,7 +326,7 @@ class Responder {
 
     private static buildDefaultBtns(index: Index): ButtonParams[][] {
         const btnsInfo: ButtonParams[][] = [
-            [this.compInfo.cancel, this.compInfo.say, this.compInfo.regenerate, this.compInfo.open]
+            [this.compInfo.cancel, this.compInfo.say, this.compInfo.regenerate]//, this.compInfo.open
         ];
         if (Number(index[1]) > 1) {
             const indexbutton = this.compInfo.index(index);
