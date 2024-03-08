@@ -300,10 +300,9 @@ type MessageInfo = Message
 
 type ChannelInfo = TextChannel
     | {
-        channelId: string;
-    } | {
-        channelId: string;
-        guild: GuildInfo;
+        channelLink?: string;
+        channelId?: string;
+        guild?: GuildInfo;
     };
 
 type GuildInfo = Guild
@@ -334,22 +333,41 @@ export class Fetcher {
             if (channel instanceof TextChannel) {
                 return channel;
             }
-            if (channel.channelId) {
-                if ('guild' in channel) {
+            if (channel.channelLink) {
+                const regex = /channels\/(\d+|@me)\/(\d+)/;
+                const match = channel.channelLink.match(regex);
+    
+                if (match) {
+                    const guildId = match[1];
+                    const channelId = match[2];
+    
+                    if (guildId === '@me') { // DM channels are not TextChannels, so this might need special handling
+                        return undefined; // Direct messages do not have TextChannels
+                    } else {
+                        const guild = await client.guilds.fetch(guildId);
+                        if (!guild) throw new Error(`Guild with ID ${guildId} not found`);
+                        return guild.channels.cache.get(channelId) as TextChannel;
+                    }
+                } else {
+                    throw new Error(`Invalid channel link: ${channel.channelLink}`);
+                }
+            } else if (channel.channelId) {
+                if (channel.guild) {
                     const guild = await Fetcher.guild(channel.guild, client);
                     if (guild) {
                         return guild.channels.cache.get(channel.channelId) as TextChannel;
                     }
+                } else {
+                    return client.channels.cache.get(channel.channelId) as TextChannel;
                 }
-                return client.channels.cache.get(channel.channelId) as TextChannel;
             }
             return undefined;
-        }
-        catch (error) {
+        } catch (error) {
             printE('Error fetching channel:', error);
             return undefined;
         }
     }
+    
     public static async message(message: MessageInfo, client: Client): Promise<Message | undefined> {
         try {
             if (message instanceof Message) {

@@ -58,6 +58,10 @@ type GroupConfig = {
 
     client.once(Events.ClientReady, async () => {
 
+        await printL(format(`Logged`, { foreground: 'white', background: 'red', formatting: ['italic', 'bold'] })
+        + ` as ${client.user?.tag}`
+        + dateToStr(new Date(), "timeStamp"));
+
         if (process.argv.includes('update')) {
             await deployCommands(serverList, client);
         }
@@ -96,10 +100,6 @@ type GroupConfig = {
     });
 
     await client.login(ribotToken);
-    await printL(format(`Logged`, { foreground: 'white', background: 'red', formatting: ['italic', 'bold'] })
-        + ` as ${client.user?.tag}`
-        + dateToStr(new Date(), "timeStamp"));
-
 
 })();
 
