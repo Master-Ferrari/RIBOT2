@@ -1,39 +1,104 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
+    
     <editMessage
-        messageLink="https://discord.com/channels/850015807005392907/968834331852300288/1215139204913434638">
-        <content text="Хочешш..?" />
+    messageLink="https://discord.com/channels/463268749022330881/1189416897167499304/1189417058723708938">
+
+        <content text="&lt;a:_:919413096676724846&gt; &lt;a:_:919413096676724846&gt; &lt;a:_:919413096676724846&gt; &lt;a:_:919413096676724846&gt;" />
 
         <buttonRow>
+            <button emojiID="937407389999714425" label="В Starcraft к gofarovich" style="Success">
+                <action actionType="roleToggle" roleID="742188275824853063">
+                    <action actionType="sendMsg" type="reply" text="[Теперь ты |Ты под](hasRole:742188275824853063)%roleName:742188275824853063%!" private="true" />
+                </action>
+            </button>
 
-            <button emojiID="919413096676724846" label="В Starcraft к test" style="Success">
-                <roleToggle actionType="roleToggle" roleID="941354809531981845">
-                    <message actionType="sendMsg" type="reply" text="[Теперь ты |Ты больше не ](hasRole)%roleName%!" private="true" />
-                </roleToggle>
+            <button emojiID="1167109048559210557" label="В DnD к эльфам" style="Secondary">
+                <action actionType="roleToggle" roleID="704443417463357472">
+                    <action actionType="sendMsg" type="reply"
+                        text="[Так или иначе, теперь ты попал %label%!|Больше никогда %label% не пойду!](hasRole:704443417463357472)"
+                        private="true" />
+                </action>
+            </button>
+
+            <button emojiID="🎖️" label="В Warhammer к ветеранам" style="Secondary">
+                <action actionType="roleToggle" roleID="726513212832481391">
+                    <action actionType="sendMsg" type="reply" text="Роль '%roleName:726513212832481391%' [добавлена!|убрана!](hasRole:726513212832481391)" private="true" />
+                </action>
+            </button>
+
+            <button emojiID="990994170304950272" label="В VR" style="Secondary">
+                <action actionType="roleToggle" roleID="934183365354078219">
+                    <action actionType="sendMsg" type="reply" text="%userNick% [погрузился В VR|погрузился В Реальность](hasRole:934183365354078219)" private="true" />
+                </action>
+            </button>
+
+            <button emojiID="753659535712845936" label="В Barotrauma на подлодку" style="Primary">
+                <action actionType="roleToggle" roleID="716344183421534238">
+                    <action actionType="sendMsg" type="reply" text="%userNick% [погружается|всплывает](hasRole:716344183421534238)" private="true" />
+                </action>
             </button>
 
         </buttonRow>
+
         <buttonRow>
 
-            <button emojiID="919413096676724846" label="В Starcraft к test" style="Success">
-                <roleToggle actionType="roleToggle" roleID="941354809531981845">
-                    <!-- <message actionType="sendMsg" type="reply" text="[Теперь ты |Ты больше не ](hasRole)%roleName%!" private="true" /> -->
-                </roleToggle>
+            <button emojiID="1048716868900360283" label="К кухонным мемам" style="Danger">
+                <action actionType="roleToggle" roleID="895525263998328834">
+                    <action actionType="sendMsg" type="reply" text="%userNick% [хочет '%rolePing:895525263998328834%'|не хочет это!](hasRole:895525263998328834)" private="true" />
+                </action>
             </button>
 
-            <button emojiID="919413096676724846" label="В Starcraft к test" style="Success">
-                <roleToggle actionType="roleToggle" roleID="941354809531981845">
-                    <message actionType="sendMsg" type="reply" text="[Теперь ты |Ты больше не ](hasRole)%roleName%!" private="true" />
-                </roleToggle>
+            <button emojiID="777546305768783913" label="Хочу Unity" style="Secondary">
+                <action actionType="roleToggle" roleID="931453686931148820">
+                    <action actionType="sendMsg" type="reply" text="[успех!|неуспех!](hasRole:931453686931148820)" private="true" />
+                </action>
+            </button>
+
+            <button emojiID="1034911205506175057" label="К фембоям" style="Secondary">
+                <action actionType="roleToggle" roleID="1164215013028925551">
+                    <action actionType="sendMsg" type="reply" text="Роль 'ФЕМБОЙ' [добавлена!|убрана!](hasRole:1164215013028925551)" private="true" />
+                </action>
+            </button>
+
+            <button emojiID="833408381838032997" label="В Factorio на завод" style="Success">
+                <action actionType="roleToggle" roleID="804805009538809887">
+                    <action actionType="sendMsg" type="send" channelLink="https://discord.com/channels/463268749022330881/746161282402746398"
+                        text="[Ура, %rolePing:804805009538809887%! Наш %userPing% решил поумнеть!|%userPing% передумал быть умным.](hasRole:804805009538809887)"
+                        private="false" />
+                </action>
+            </button>
+
+            <button emojiID="1074814623557103707" label="К сомнительным религиозным мемам"
+                style="Success">
+                <action actionType="roleToggle" roleID="1147935126228041738">
+                    <action actionType="sendMsg" type="reply"
+                        text="[И сказала Рiба: прибавилось. И нарекла ему имя: %userPing%.|Не нравится - не слушай!](hasRole:1147935126228041738)"
+                        private="true" />
+                </action>
             </button>
 
         </buttonRow>
+
         <buttonRow>
 
-            <button emojiID="919413096676724846" label="В Starcraft к test" style="Success">
-                <roleToggle actionType="roleToggle" roleID="941354809531981845">
-                    <message actionType="sendMsg" type="reply" text="[Теперь ты |Ты больше не ](hasRole)%roleName%!" private="true" />
-                </roleToggle>
+            <button emojiID="1070752930103300207" label="В Dwarf Fortress к дворфам"
+                style="Secondary">
+                <action actionType="roleToggle" roleID="824675578212515840">
+                    <action actionType="sendMsg" type="reply" text="Жизнь %userName%а [с Бородой!|без Бороды](hasRole:824675578212515840)" private="true" />
+                </action>
+            </button>
+
+            <button emojiID="926816629004845096" label="К мейнстримным играм" style="Secondary">
+                <action actionType="roleToggle" roleID="822386742127624202">
+                    <action actionType="sendMsg" type="reply" text="%userName% [постарел|одумался](hasRole:822386742127624202)" private="true" />
+                </action>
+            </button>
+
+            <button emojiID="1091328334929084467" label="Я не уверен" style="Danger">
+                <action actionType="roleToggle" roleID="895525701535555637">
+                    <action actionType="sendMsg" type="reply" text="[Роль '%roleName:895525701535555637%' добавлена!|%userName% испугался](hasRole:895525701535555637)" private="true" />
+                </action>
             </button>
 
         </buttonRow>

@@ -6,34 +6,29 @@ import { ScriptBuilder } from '../../libs/scripts';
 import { print, printE, printD } from '../../libs/consoleUtils';
 import { Fetcher, ButtonParams, ComponentsData, ComponentRow, ComponentBuilder, buildMessage, buildComponents, ComponentParams } from '../../libs/discordUtils';
 import { APIInteractionGuildMember, ButtonInteraction, Client, GuildMember, MessageEditOptions, Role, SlashCommandBuilder, User } from 'discord.js';
-import { Button, RoleToggle, RoleToggleMessage, XML, validateXML } from './xmlStructureCheck';
+import { Button, Action as ActionXml, XML, validateXML, RoleToggleAction, MessageAction } from './xmlStructureCheck';
 
 type ToggleRole = {
     actionType: 'toggleRole';
-    roleID: string;
+    roleId: string;
     actions?: Action[];
 }
 
 type SendMsg = {
     actionType: 'sendMsg';
-    type: 'reply';
+    type: 'reply' | 'send';
+    channelLink?: string;
     text: string;
     private: boolean;
 }
 
 type Action = (ToggleRole | SendMsg);
 
-// type CommandButton = 
-
 type CommandMessage = {
     link: string;
     text: string;
     components: (ComponentParams & { actions?: Action[]; })[][];
 }
-
-// export type ComponentParams = (ButtonParams | SelectParams);
-// export type ComponentRow = ComponentParams[];
-// export type ComponentsData = ComponentRow[];
 
 
 class XMLCommander {
@@ -100,7 +95,7 @@ class XMLCommander {
                                 style: xmlbutton.$.style as any,
                                 disabled: false,
 
-                                actions: getAction(xmlbutton.roleToggle)
+                                actions: getAction(xmlbutton.action)
                             };
                             row.push(button);
                             buttonIndex++;
@@ -115,28 +110,28 @@ class XMLCommander {
             messageIndex++;
         });
 
-        function getAction(xmlActions: RoleToggle[] | RoleToggleMessage[] | undefined): Action[] | undefined {
+        function getAction(xmlActions: ActionXml[] | undefined): Action[] | undefined {
             if (!xmlActions) return;
 
-            printD({ xmlActions })
 
             let actions: Action[] = [];
             xmlActions.forEach((xmlAction) => {
 
                 if (xmlAction.$.actionType === 'roleToggle') {
-                    xmlAction = xmlAction as RoleToggle;
+                    xmlAction = xmlAction as RoleToggleAction;
                     actions.push({
                         actionType: 'toggleRole',
-                        roleID: xmlAction.$.roleID,
-                        actions: getAction(xmlAction.message)
+                        roleId: xmlAction.$.roleID!,
+                        actions: getAction(xmlAction.action)
                     });
 
                 } if (xmlAction.$.actionType === 'sendMsg') {
-                    xmlAction = xmlAction as any as RoleToggleMessage;
+                    xmlAction = xmlAction as MessageAction;
                     actions.push({
                         actionType: 'sendMsg',
-                        type: 'reply',
-                        text: xmlAction.$.text,
+                        type: xmlAction.$.type!,
+                        channelLink: xmlAction.$.channelLink,
+                        text: xmlAction.$.text!,
                         private: xmlAction.$.private === 'true'
                     });
                 }
@@ -147,16 +142,10 @@ class XMLCommander {
             return actions;
         }
 
-        printD({ commandMessages });
         return commandMessages;
     }
 
     async editMessages(client: Client) {
-
-        this.xmlStruct.editMessage.forEach(async (messageInfo) => {
-            const message = await Fetcher.message({ messageLink: messageInfo.$.messageLink }, client);
-            print(message!.content);
-        })
 
         this._commandMessages.forEach(async (commandMessage) => {
             const message = await Fetcher.message({ messageLink: commandMessage.link }, client);
@@ -164,7 +153,6 @@ class XMLCommander {
                 printE(`Message with link ${commandMessage.link} not found`);
                 return;
             }
-            print("Edit message: " + commandMessage.text);
 
             const btns = buildComponents(commandMessage.components);
 
@@ -174,54 +162,110 @@ class XMLCommander {
         })
     }
 
-    async buttonInteract(interaction: ButtonInteraction) {
-        // printD({ interaction: interaction.customId });
+    async buttonInteract(interaction: ButtonInteraction, client: Client) {
 
         const [group, msgNumber, rowNumber, btnNumber] = interaction.customId.split('-');
-
         const btnInfo = this.commandMessages[Number(msgNumber)].components[Number(rowNumber)][Number(btnNumber)];
-        printD({ btnInfo });
+        let member = interaction.member as GuildMember;
+        btnInfo.actions?.forEach(performAction);
 
-        if (btnInfo.actions) {
-            btnInfo.actions.forEach((action) => {
-                performAction(action);
-            })
-        }
 
-        function performAction(action: Action) {
-            try {
-                switch (action.actionType) {
-                    case 'toggleRole': {
-                        action = action as ToggleRole & { roleID: string; };
-                        const role = interaction.guild!.roles.cache.get(action.roleID);
-                        const hasRole = toggleRole(interaction.member as GuildMember, role!);
-                        if (!role) {
-                            printE(`Role ${action.roleID} not found`);
-                            return;
+        async function performAction(action: Action) {
+
+            //#region common variables
+
+            const roleId = 'roleID' in action ? (action as ToggleRole & { roleID: string; }).roleId : undefined;
+            const role: Role | undefined = roleId ? interaction.guild!.roles.cache.get(roleId) : undefined;
+
+            //#endregion
+
+            //#region synonym handler
+
+            async function synonymHandler(text: string): Promise<string> {
+                let result = text;
+
+                const regexDict: { regex: RegExp, replace: (matches: string[]) => string }[] = [
+                    { regex: /%userName%/g, replace: () => `${member.user.globalName}` },
+                    { regex: /%userPing%/g, replace: () => `<@${member.id}>` },
+                    { regex: /%userNick%/g, replace: () => `${member.nickname || member.user.globalName}` },
+                    {
+                        regex: /%rolePing:(\d*)%/g,
+                        replace: (matches: string[]): string => `<@&${matches[0]}>`
+                    },
+                    {
+                        regex: /%roleName:(\d*)%/g,
+                        replace: (matches: string[]): string => {
+                            const name = interaction.guild?.roles.cache.get(matches[0])?.name;
+                            return `${name}`;
                         }
-                        action.actions?.forEach((action) => {
-                            performAction(action);
-                        })
+                    },
+                    {
+                        regex: /\[(?!\[)([^\]\[]+)\|([^\]\[]+)\]\(hasRole:(\d*)\)/g,
+                        replace: (matches: string[]): string => {
+                            const roleId = matches[2];
+                            const hasRole = member.roles.cache.has(roleId);
+                            return hasRole ? matches[0] : matches[1];
+                        }
+                    },
+                    {
+                        regex: /%buttonLabel%/g,
+                        replace: (): string => {
+                            return `${(btnInfo as ButtonParams).label}`
+                        }
+                    },
+                ];
+
+                regexDict.forEach(({ regex, replace }) => {
+                    result = result.replace(regex, (...matches) => {
+                        const result = replace(matches.slice(1, -2));
+                        return result;
+                    });
+                });
+
+                return result;
+
+            }
+
+
+            //#endregion
+
+            switch (action.actionType) {
+                case 'toggleRole': {
+                    action = action as ToggleRole;
+                    const role = interaction.guild!.roles.cache.get(action.roleId);
+                    if (role) member = await toggleRole(member, role);
+                    if (!role) {
+                        return;
                     }
-                    case 'sendMsg': {
-                        action = action as SendMsg & { roleID: string; };
-                        if (action.type === 'reply')
-                            interaction.reply({ content: action.text ?? '...', ephemeral: action.private });
-                    }
+                    action.actions?.forEach(async (action) => {
+                        await performAction(action);
+                    })
+                    break;
                 }
-            } catch (e) {
-                printE(e);
+                case 'sendMsg': {
+                    action = action as SendMsg;
+                    printD({ action });
+                    if (action.type === 'reply') {
+                        await interaction.reply({ content: await synonymHandler(action.text) ?? '...', ephemeral: action.private });
+                    }
+                    if (action.type === 'send') {
+                        const channel = await Fetcher.channel({ channelLink: action.channelLink! }, client);
+                        printD({ channel: channel!.name });
+                        await channel?.send({ content: await synonymHandler(action.text) ?? '...' });
+                    }
+                    break;
+                }
             }
         }
 
-        async function toggleRole(member: GuildMember, role: Role): Promise<boolean> {
+        async function toggleRole(member: GuildMember, role: Role): Promise<GuildMember> {
             const hasRole = member.roles.cache.has(role.id);
             if (!hasRole) {
-                await member.roles.add(role);
+                member = await member.roles.add(role);
             } else {
-                await member.roles.remove(role);
+                member = await member.roles.remove(role);
             }
-            return hasRole;
+            return member;
         }
 
     }
@@ -270,7 +314,7 @@ export const script = new ScriptBuilder({
         return false;
     },
     onButton: async (interaction) => {
-        await commander.buttonInteract(interaction);
+        await commander.buttonInteract(interaction, script.client!);
     }
 }).addOnSlash({
     slashDeployData: new SlashCommandBuilder()
