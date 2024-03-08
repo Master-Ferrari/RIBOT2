@@ -244,13 +244,11 @@ class XMLCommander {
                 }
                 case 'sendMsg': {
                     action = action as SendMsg;
-                    printD({ action });
                     if (action.type === 'reply') {
                         await interaction.reply({ content: await synonymHandler(action.text) ?? '...', ephemeral: action.private });
                     }
                     if (action.type === 'send') {
                         const channel = await Fetcher.channel({ channelLink: action.channelLink! }, client);
-                        printD({ channel: channel!.name });
                         await channel?.send({ content: await synonymHandler(action.text) ?? '...' });
                     }
                     break;
