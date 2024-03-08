@@ -32,14 +32,15 @@ type CommandMessage = {
 
 
 class XMLCommander {
-    private xmlPath: string;
+    private _xmlPath: string;
     private xmlStruct: XML;
     private _commandMessages: CommandMessage[];
 
+    public get xmlPath() { return this._xmlPath; }
     public get commandMessages() { return this._commandMessages; }
 
     private constructor(_xmplPath: string, _xmlStruct: XML, _commandMessages: CommandMessage[]) {
-        this.xmlPath = _xmplPath;
+        this._xmlPath = _xmplPath;
         this.xmlStruct = _xmlStruct;
         this._commandMessages = _commandMessages;
     }
@@ -51,7 +52,7 @@ class XMLCommander {
     }
 
     async update() {
-        this.xmlStruct = await XMLCommander.deserializeXML(this.xmlPath);
+        this.xmlStruct = await XMLCommander.deserializeXML(this._xmlPath);
         this._commandMessages = XMLCommander.getCommandMessages(this.xmlStruct);
     }
 
@@ -321,11 +322,30 @@ export const script = new ScriptBuilder({
         .addSubcommand(subcommand =>
             subcommand
                 .setName('update')
-                .setDescription('update channel access messages via control XML')),
+                .setDescription('update channel access messages via control XML'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('get')
+                .setDescription('sends control XML'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('set')
+                .setDescription('НЕ ГРУЗИТ. НЕ РАБОТАЕТ. МНЕ ЛЕНЬ.')
+                .addAttachmentOption(option =>
+                    option
+                        .setName('file')
+                        .setDescription('XML file')
+                        .setRequired(true)))
+    ,
 
     onSlash: async (interaction) => {
-        commander.update();
-        await commander.editMessages(script.client!);
-        await interaction.reply({ content: 'done', ephemeral: true });
+        const options = interaction.options;
+        if (options.getSubcommand() == "update") {
+            commander.update();
+            await commander.editMessages(script.client!);
+            await interaction.reply({ content: 'done', ephemeral: true });
+        } else if (options.getSubcommand() == "get") {
+            await interaction.reply({ files: [commander.xmlPath], ephemeral: false });
+        }
     }
 })
