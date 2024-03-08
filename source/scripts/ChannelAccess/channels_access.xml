@@ -16,7 +16,7 @@
             <button emojiID="1167109048559210557" label="В DnD к эльфам" style="Secondary">
                 <action actionType="roleToggle" roleID="704443417463357472">
                     <action actionType="sendMsg" type="reply"
-                        text="[Так или иначе, теперь ты попал %label%!|Больше никогда %label% не пойду!](hasRole:704443417463357472)"
+                        text="[Так или иначе, теперь ты попал %buttonLabel%!|Больше никогда %buttonLabel% не пойду!](hasRole:704443417463357472)"
                         private="true" />
                 </action>
             </button>
