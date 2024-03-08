@@ -156,13 +156,12 @@ export class ScriptBuilder {
         scopeGuilds: true,
         scopeUsers: true
     };
-    private _isValidButtonId?: (customId: string) => Promise<boolean>;
+    private _isValidCustomId?: (customId: string) => Promise<boolean>;
     public get onButton() {
         if (!this._onButton) return undefined;
         return async (interaction: Interaction) => {
             if (!interaction.isButton()) return;
-            if (!this.isValidButtonId!(interaction.customId)) return;
-
+            if (!(await this.isValidCustomId!(interaction.customId))) return;
             const username = interaction.user.username;
             const commandName = interaction.message.id + "/button/";
             const options = interaction.customId;
@@ -175,7 +174,7 @@ export class ScriptBuilder {
             await this._onButton!(interaction);
         }
     }
-    public get isValidButtonId() { return this._isValidButtonId; }
+    public get isValidCustomId() { return this._isValidCustomId; }
     public isButton(): this is ScriptBuilder & {
         onButton: (interaction: ButtonInteraction) => Promise<void>,
         isValidCustomId: (customId: string) => Promise<boolean>
@@ -367,7 +366,7 @@ export class ScriptBuilder {
             ...options.settings
         };
         this._onButton = options.onButton;
-        this._isValidButtonId = options.isValidCustomId;
+        this._isValidCustomId = options.isValidCustomId;
         return this;
     }
 
