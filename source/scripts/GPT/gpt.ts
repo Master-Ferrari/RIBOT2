@@ -1,14 +1,14 @@
 import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel, Events, User, PartialUser, PartialMessageReaction, MessageReaction } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE, prettySlice } from '../../libs/consoleUtils';
 import { fetchLastNMessages, WebhookSend, fetchMessage, GuildSetting, fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings, updateReactions, ScriptScopes } from '../../libs/discordUtils';
-import { GPT, History, ModelVersions, gptModels } from '../../libs/gptHandler';
+import { GptFactory, History, OpenaiModels, openaiModels } from '../../libs/gptHandler';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../libs/sqlite';
 import { TTSFactory } from '../../libs/tts';
 import { ScriptBuilder } from '../../libs/scripts';
 
 const defaultVisionDistance = 15;
-const defaultModel: ModelVersions = "gpt-4-1106-preview";
+const defaultModel: OpenaiModels = "gpt-4-1106-preview";
 let guildSettingS: any;
 
 const regenerateReaction = { full: "<:regenerate:1196122410626330624>", name: "regenerate" };
@@ -44,7 +44,7 @@ export const script = new ScriptBuilder({
                 .setDescription('model')
                 .setRequired(false)
                 .addChoices(
-                    ...gptModels.map(model => ({ name: model, value: model })),
+                    ...openaiModels.map(model => ({ name: model, value: model })),
                 )),
     onSlash: async (interaction) => {
 
@@ -57,7 +57,7 @@ export const script = new ScriptBuilder({
             }
 
             const options: any = interaction.options;
-            const model = (options.getString("model") ?? defaultModel) as ModelVersions;
+            const model = (options.getString("model") ?? defaultModel) as OpenaiModels;
             const visiondistance = options.getInteger("visiondistance") ?? 10;
 
 
@@ -273,7 +273,7 @@ export const script = new ScriptBuilder({
                                 oldMsg: msg
                             },
                             visiondistance: defaultVisionDistance,
-                            model: msg.author.username as ModelVersions
+                            model: msg.author.username as OpenaiModels
                         },
                     );
 
@@ -329,7 +329,7 @@ export const script = new ScriptBuilder({
                                         file: tts.outputPath
                                     },
                                     visiondistance: defaultVisionDistance,
-                                    model: msg.author.username as ModelVersions
+                                    model: msg.author.username as OpenaiModels
                                 },
                             );
 
@@ -384,7 +384,7 @@ type gptResponseParams = {
         }
     ),
     visiondistance: number,
-    model: ModelVersions
+    model: OpenaiModels
 }
 
 async function gptWhResponse(params: gptResponseParams) {
@@ -421,7 +421,7 @@ async function gptWhResponse(params: gptResponseParams) {
     }
     else {
         try {
-            const content = await askGpt(params.mode.sendParams.client, gptModels, lastMessages2, params.visiondistance, params.model);
+            const content = await askGpt(params.mode.sendParams.client, openaiModels, lastMessages2, params.visiondistance, params.model);
 
             await editWebhookMsg(msg.id, {
                 ...params.mode.sendParams,
@@ -452,9 +452,13 @@ async function gptWhResponse(params: gptResponseParams) {
 
 
 async function askGpt(client: Client, gptModels: string[], lastMessages: Message[],
-    visiondistance: number, model: ModelVersions): Promise<string> {
+    visiondistance: number, model: OpenaiModels): Promise<string> {
 
-    const gpt = new GPT(openaikey, 2000, model);
+    const gpt = GptFactory.create('Openai', {
+        apiKey: openaikey,
+        tokens: 2000,
+        model: model,
+    })
 
     const history: History = [{
         role: "assistant",
@@ -474,16 +478,11 @@ async function askGpt(client: Client, gptModels: string[], lastMessages: Message
 
     history.reverse();
 
-    const ans: any = await gpt.request(history, { format: 'json_object', formatting: 'simplify' });
+    const ans: any = await gpt.requestChat(history);
 
     let content: string;
 
-    if (typeof ans === 'string') {
-        content = ans;
-    }
-    else {
-        content = ans.ans;
-    }
+    content = ans;
 
     return content || 'Нет ответа';
 }

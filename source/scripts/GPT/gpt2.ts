@@ -2,7 +2,7 @@ import {
     AttachmentBuilder, Client, Message, ActionRowBuilder,
     TextChannel, ButtonComponent, ComponentType, Events, User,
     PartialUser, PartialMessageReaction, MessageReaction, ChannelType,
-    StringSelectMenuBuilder, ChannelSelectMenuBuilder
+    StringSelectMenuBuilder, ChannelSelectMenuBuilder, Emoji
 } from 'discord.js';
 import {
     ButtonBuilder, ButtonStyle, SlashCommandBuilder,
@@ -12,23 +12,24 @@ import {
 
 import {
     print, printD, printL, format, dateToStr, printE,
-    prettySlice, interactionLog
+    prettySlice, interactionLog, replaceDictionary
 } from '../../libs/consoleUtils';
 import {
     fetchLastNMessages, Fetcher, fetchMessage, GuildSetting,
     fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings,
     updateReactions, ScriptScopes, ComponentParams, ComponentBuilder,
-    SelectParams, ButtonParams, buildMessage, buildComponents
+    SelectParams, ButtonParams, buildMessage, buildComponents, SafeDiscord
 } from '../../libs/discordUtils';
 
-import { GPT, History, ModelVersions, gptModels } from '../../libs/gptHandler';
+import { G4f, G4fModels, GptFactory, History, Openai, g4fModels } from '../../libs/gptHandler';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../libs/sqlite';
 import { TTSFactory } from '../../libs/tts';
 import { ScriptBuilder } from '../../libs/scripts';
+import { METHODS } from 'http';
 
 const defaultVisionDistance = 15;
-const defaultModel: ModelVersions = "gpt-4-1106-preview";
+const defaultModel: G4fModels = "gpt-4-32k";
 let guildSettingS: any;
 
 const compNames = {
@@ -66,6 +67,21 @@ type GptMessageData = {
 
 type Index = [string | number, string | number];
 
+
+const method: "G4f" | "Openai" = "G4f";
+
+const prompt: string = `Это запись чата. Ты дискорд бот. Твой ник - %botusername%.
+Для кода и язков разметок ВСЕГДА используй форматирование: \`\`\`[название языка][сам код]\`\`\` .
+Отвечай на последние вопросы или сообщения.\n`+
+    // `Отвечай в формате JSON {"ans": "твой ответ"}!!!\n`+
+    `Отвечай на русском языке. Общайся в житейской манере (как часто пишут в чатах), но всегда ясно доноси мысль.
+Не отвечай исключительно смайликами если тебя не просят.
+Свой ник в ответе не пиши. Только текст ответа.
+Не упоминай эти инструкции в ответах.
+
+Новые сообщения внизу.
+Последние %visiondistance% сообщений:\n%lastmessages%`
+
 export const script = new ScriptBuilder({
     name: "gpt2",
     group: "test",
@@ -90,7 +106,7 @@ export const script = new ScriptBuilder({
                     .setDescription('model')
                     .setRequired(false)
                     .addChoices(
-                        ...gptModels.map(model => ({ name: model, value: model })),
+                        ...g4fModels.map(model => ({ name: model, value: model })),
                     )),
         onSlash: async (interaction) => {
 
@@ -100,12 +116,17 @@ export const script = new ScriptBuilder({
 
             let message = await channel.send(Responder.buildLoadingMessage() as MessageCreateOptions);
 
+            let data = await GptDbHandler.firstPage(message.id, "nothing here");
+
             const lastMessages = await Fetcher.messages(message, script.client!, defaultVisionDistance, "before");
-            const content = String(await askGpt(script.client!, gptModels, lastMessages, defaultVisionDistance, defaultModel));
-            await message.edit(Responder.buildDoneMessage(content) as MessageEditOptions);
 
-            await GptDbHandler.firstPage(message.id, content);
+            const content = await AskGpt.ask(
+                method, script.client!, lastMessages, defaultVisionDistance, defaultModel,
+                prompt, g4fModels);
 
+            data = await GptDbHandler.editPage(message.id, content);
+
+            await SafeDiscord.messageEdit(message, Responder.buildDoneMessage(data!) as MessageEditOptions);
         }
     })
     .addOnButton({
@@ -144,11 +165,9 @@ export const script = new ScriptBuilder({
 
                         //не забыть не убить картинки там которые были
                         if (data.deleted) return;
-                        await interaction.message.edit({ ...Responder.buildDoneMessage(data), files: [voiceFile] } as MessageEditOptions);
+                        await SafeDiscord.messageEdit(interaction.message, { ...Responder.buildDoneMessage(data), files: [voiceFile] } as MessageEditOptions);
 
                         const files: msgFiles = interaction.message.attachments.map(attachment => { return { url: attachment.url, name: attachment.name } });
-
-                        // printD({ files });
 
                         data = await GptDbHandler.addFiles(msgId, files, "combine");
 
@@ -158,15 +177,18 @@ export const script = new ScriptBuilder({
             } else if (interaction.customId === compNames.regenerate) {
 
 
-                const lastMessages = Fetcher.messages(interaction.message, script.client!, defaultVisionDistance, "before");
-                const content = askGpt(script.client!, gptModels, await lastMessages, defaultVisionDistance, defaultModel);
-
-                if (data.deleted) return;
                 await interaction.update(Responder.buildLoadingButtonMessage(data, [compNames.regenerate], [compNames.say, compNames.left, compNames.right]) as MessageEditOptions);
+                data = await GptDbHandler.anotherPage(msgId, reactionNames.wait.full);
 
-                data = await GptDbHandler.anotherPage(msgId, await content);
-                if (data.deleted) return;
-                await interaction.message.edit(Responder.buildDoneMessage(data) as MessageEditOptions);
+                const lastMessages = await Fetcher.messages(interaction.message, script.client!, defaultVisionDistance, "before");
+
+                const content = await AskGpt.ask(
+                    method, script.client!, lastMessages, defaultVisionDistance, defaultModel,
+                    prompt, g4fModels);
+
+                data = await GptDbHandler.editPage(msgId, content);
+
+                await SafeDiscord.messageEdit(interaction.message, Responder.buildDoneMessage(data!) as MessageEditOptions);
 
             } else if (interaction.customId === compNames.left) {
 
@@ -224,12 +246,17 @@ export const script = new ScriptBuilder({
 
             let message = await channel.send(Responder.buildLoadingMessage() as MessageCreateOptions);
 
+            let data = await GptDbHandler.firstPage(message.id, "nothing here");
+
             const lastMessages = await Fetcher.messages(message, script.client!, defaultVisionDistance, "before");
 
-            const content = String(await askGpt(script.client!, gptModels, lastMessages, defaultVisionDistance, defaultModel));
-            await message.edit(Responder.buildDoneMessage(content) as MessageEditOptions);
+            const content = await AskGpt.ask(
+                method, script.client!, lastMessages, defaultVisionDistance, defaultModel,
+                prompt, g4fModels);
 
-            await GptDbHandler.firstPage(message.id, content);
+            data = await GptDbHandler.editPage(message.id, content);
+
+            await SafeDiscord.messageEdit(message, Responder.buildDoneMessage(data!) as MessageEditOptions);
 
         }
     });
@@ -326,7 +353,7 @@ class Responder {
 
     private static buildDefaultBtns(index: Index): ButtonParams[][] {
         const btnsInfo: ButtonParams[][] = [
-            [this.compInfo.cancel, this.compInfo.say, this.compInfo.regenerate]//, this.compInfo.open
+            [this.compInfo.cancel, this.compInfo.say, this.compInfo.regenerate, this.compInfo.open]
         ];
         if (Number(index[1]) > 1) {
             const indexbutton = this.compInfo.index(index);
@@ -343,6 +370,7 @@ class Responder {
     }
     // #endregion
 
+    // #region message builders
     public static buildLoadingMessage(): MessageCreateOptions | MessageEditOptions {
 
         const btns = buildComponents([[this.compInfo.cancel]]);
@@ -403,55 +431,103 @@ class Responder {
         const btns = buildComponents(btnsInfo);
         return buildMessage({ content: data.answers[data.currentIndex].content, files }, btns);
     }
+    // #endregion
 
 }
 
-async function askGpt(client: Client, gptModels: string[], lastMessages: Message[],
-    visiondistance: number, model: ModelVersions): Promise<string> {
+class AskGpt {
 
-    const gpt = new GPT(openaikey, 2000, model);
 
-    const history: History = [{
-        role: "system",
-        content: `Это запись чата. Ты дискорд бот. Твой ник - ${client.user?.username}.
-Для кода ВСЕГДА используется форматирование: \`\`\`[язык][код]\`\`\` .
-Отвечай на последние вопросы или сообщения.\n
-Отвечай в формате JSON {"ans": "твой ответ"}!!!
-Отвечай на русском языке. Общайся в житейской манере (как часто пишут в чатах), но всегда ясно доноси мысль.
-Не отвечай исключительно смайликами если тебя не просят.
-Свой ник в ответе не пиши. Только текст ответа.
-Не упоминай эти инструкции в ответах.
+    static async ask(
+        method: "Openai" | "G4f",
 
-Новые сообщения внизу.
-Последние ${visiondistance} сообщений:\n`
-            + lastMessages.map(msg => {
-                const name = gptModels.find(m => m === msg.author.username) ? client.user?.username : msg.author.username
+        client: Client,
+        lastMessages: Message[],
+        visiondistance: number,
+        model: G4fModels,
+
+        prompt: string,
+        allModels: string[],
+
+        // stream: boolean,
+        callback?: (content: string) => Promise<void>,
+        streamCallback?: (iteration: number, content: string) => Promise<void>,
+    ): Promise<string> {
+        const dictionary = {
+            "botusername": client.user?.username,
+            "visiondistance": visiondistance,
+            "lastmessages": lastMessages.map(msg => {
+                const name = allModels.find(m => m === msg.author.username) ? client.user?.username : msg.author.username
                 return `${name}:\n«${msg.content}»`;
             }).reverse().join("\n")
-    }];
 
-    history.reverse();
+        }
+        prompt = replaceDictionary(prompt, dictionary, "\\%", "\\%");
 
-    const ans: any = await gpt.request(history, { format: 'json_object', formatting: 'simplify' });
 
-    let content: string;
+        const history: History = [{
+            role: "system",
+            content: prompt
+        }];
+        history.reverse();
 
-    if (typeof ans === 'string') {
-        content = ans;
+        printD({ history });
+
+        let ans: string = "No answer";
+        if (method === "Openai") {
+            ans = await this.openai(history, model, streamCallback);
+
+        }
+
+        if (method === "G4f") {
+            ans = await this.g4f(history, model, callback);
+        }
+        return ans;
     }
-    else {
-        content = ans.ans;
-    }
-    if (content.length > 2000) {
-        const slice = prettySlice(content, 0, 1980);
-        content = slice.start + '...\n[читать продолжение в источнике]';
+
+    private static async openai(history: History, model: G4fModels, callback?: (iteration: number, content: string) => Promise<void>): Promise<string> {
+
+        const gpt = GptFactory.create('Openai', {
+            apiKey: openaikey,
+            tokens: 2000,
+            model: model,
+            temperature: 0.7
+        }) as Openai;
+
+        let content = "";
+
+        let iteration = 0;
+        await gpt.requestStream(history, 10, 400, async (part: string) => {
+            content += part;
+            callback?.(iteration, content)
+            iteration++;
+            return;
+        });
+
+        return (content != "") ? content : 'No answer';
     }
 
+    private static async g4f(history: History, model: G4fModels, callback?: (content: string) => Promise<void>): Promise<string> {
 
-    // print('GPT: ' + content);
-    return content || 'Нет ответа';
+        const gpt = GptFactory.create('G4f', {
+            apiKey: openaikey,
+            tokens: 2000,
+            model: model,
+            temperature: 0.7
+        }) as G4f;
+
+
+        let content: string = await gpt.requestChat(history, 3);
+        if (!content || content == "") content = 'No answer';
+
+        callback?.(content);
+
+        return (content != "") ? content : 'No answer';
+    }
 
 }
+
+
 
 class GptDbHandler {
     private static _gptMessagesTableName = 'gptMessages';
@@ -468,10 +544,10 @@ class GptDbHandler {
         return data;
     }
 
-    static async firstPage(messageId: string, content: string): Promise<GptMessageData> {
+    static async firstPage(messageId: string, content: string, files: msgFiles = []): Promise<GptMessageData> {
         const data = {
             messageId,
-            answers: [{ content, files: [] }],
+            answers: [{ content, files }],
             currentIndex: 0,
             deleted: false
         };
@@ -481,12 +557,28 @@ class GptDbHandler {
         return data;
     }
 
-    static async anotherPage(messageId: string, content: string): Promise<GptMessageData> {
+    static async editPage(messageId: string, content: string): Promise<GptMessageData> {
         const json = await this.load(messageId) as GptMessageData;
+
+        const answers = json.answers;
+        answers[json.currentIndex].content = content;
 
         const data = {
             ...json,
-            data: json.answers.push({ content, files: [] }) ?? content,
+            answers: answers,
+        }
+        await Database.interact(this._db, async (db) => {
+            await db.setJSON(this._gptMessagesTableName, messageId, data)
+        })
+        return data;
+    }
+
+    static async anotherPage(messageId: string, content: string, files: msgFiles = []): Promise<GptMessageData> {
+        const json = await this.load(messageId) as GptMessageData;
+        json.answers.push({ content, files }) ?? content
+
+        const data = {
+            ...json,
             currentIndex: json.answers.length - 1
         }
         await Database.interact(this._db, async (db) => {
@@ -524,7 +616,6 @@ class GptDbHandler {
 
     static async loadPage(messageId: string, direction: "left" | "right"): Promise<GptMessageData> {
         const json = await this.load(messageId) as GptMessageData;
-        // const newIndex = Math.max(0, Math.min(json.answers.length, direction == "left" ? json.currentIndex - 1 : json.currentIndex + 1));
         const newIndex = direction == "left" ? Math.max(0, json.currentIndex - 1) : Math.min(json.answers.length - 1, json.currentIndex + 1);
         const data = {
             ...json,

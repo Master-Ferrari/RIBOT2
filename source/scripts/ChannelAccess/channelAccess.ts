@@ -330,7 +330,7 @@ export const script = new ScriptBuilder({
         .addSubcommand(subcommand =>
             subcommand
                 .setName('set')
-                .setDescription('НЕ ГРУЗИТ. НЕ РАБОТАЕТ. МНЕ ЛЕНЬ.')
+                .setDescription('Зачем это тебе? Оно не работает!')
                 .addAttachmentOption(option =>
                     option
                         .setName('file')

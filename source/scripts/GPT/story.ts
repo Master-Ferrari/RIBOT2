@@ -1,7 +1,7 @@
 import { CommandInteraction, SlashCommandBuilder, Client, Message, GuildBasedChannel, TextChannel, EmbedBuilder } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE } from '../../libs/consoleUtils';
 import { fetchLastNMessages, GuildSetting, fetchChannel, sendWebhookMsg, getSettings } from '../../libs/discordUtils';
-import { GPT, History, gptModels, ModelVersions } from '../../libs/gptHandler';
+import { GptFactory, History, g4fModels, OpenaiModels, G4f } from '../../libs/gptHandler';
 import { openaikey } from '../../botConfig.json';
 import Database from '../../libs/sqlite';
 import { ScriptBuilder } from '../../libs/scripts';
@@ -22,7 +22,7 @@ export const script = new ScriptBuilder({
                 .setDescription('model')
                 .setRequired(false)
                 .addChoices(
-                    ...gptModels.map(model => ({ name: model, value: model })),
+                    ...g4fModels.map(model => ({ name: model, value: model })),
                 )),
     onSlash: async (interaction) => {
 
@@ -32,7 +32,11 @@ export const script = new ScriptBuilder({
         const model: string = options.getString("model") ?? 'gpt-4-1106-preview';
         const promt: string = options.getString("promt");
 
-        const gpt = new GPT(openaikey, 4000, model as ModelVersions);
+
+        const gpt = GptFactory.create('G4f', {
+            model: 'gpt-3.5-turbo'
+        }) as G4f;
+        // const gpt = new GPT(openaikey, 4000, model as OpenaiModels);
 
         if (interaction.guildId === null) {
             printE('GuildId is null');
@@ -55,7 +59,7 @@ export const script = new ScriptBuilder({
 Не расписывай диалоги и мелкие события, только основные этапы развития истории.
 Будь остроумен!`
         }];
-        ans = await gpt.request(history, { format: "text", formatting: 'simplify' });
+        ans = await gpt.requestChat(history);
         // printD(ans);
 
         await send(`## 1/2\n<a:loading:1078462597982081096>`, JSON.stringify(ans, null, 2), interaction, script.client!);
@@ -68,7 +72,7 @@ export const script = new ScriptBuilder({
 [{"name": "Автор","text": "блаблабла"},{"name": "Андрей","text": "блаблабла"},{"name": "Майкл","text": "блаблабла"},{"name": "Андрей","text": "блаблабла"},{"name": "Симон","text": "блаблабла"}]
 Имена героев понятное дело подбери сам.\n\n\n!!!Каждый герой должен вступать не меньше трёх раз!!!`
         }];
-        ans = await gpt.request(history, { format: "json_object", formatting: 'simplify' });
+        ans = await gpt.requestChat(history);
         // printD(ans);
 
         // await sendWebhookMsg({

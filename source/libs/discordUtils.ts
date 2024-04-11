@@ -336,11 +336,11 @@ export class Fetcher {
             if (channel.channelLink) {
                 const regex = /channels\/(\d+|@me)\/(\d+)/;
                 const match = channel.channelLink.match(regex);
-    
+
                 if (match) {
                     const guildId = match[1];
                     const channelId = match[2];
-    
+
                     if (guildId === '@me') { // DM channels are not TextChannels, so this might need special handling
                         return undefined; // Direct messages do not have TextChannels
                     } else {
@@ -367,7 +367,7 @@ export class Fetcher {
             return undefined;
         }
     }
-    
+
     public static async message(message: MessageInfo, client: Client): Promise<Message | undefined> {
         try {
             if (message instanceof Message) {
@@ -495,4 +495,24 @@ export function buildComponents(data: ComponentParams[][]): ComponentBuilder[][]
     });
 }
 
+//#endregion
+
+//#region safeRequest //cringe
+export class SafeDiscord {
+
+    private static async trycatch(callback: () => Promise<any>): Promise<any> {
+        try {
+            return await callback();
+        } catch (error) {
+            printE('SafeDiscord Error:', error);
+        }
+    }
+
+    static async messageEdit(message: Message, options: MessageEditOptions): Promise<Message | undefined> {
+        return this.trycatch(
+            async () => await message.edit(options)
+        );
+    }
+
+}
 //#endregion

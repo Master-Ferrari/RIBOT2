@@ -59,8 +59,8 @@ type GroupConfig = {
     client.once(Events.ClientReady, async () => {
 
         await printL(format(`Logged`, { foreground: 'white', background: 'red', formatting: ['italic', 'bold'] })
-        + ` as ${client.user?.tag}`
-        + dateToStr(new Date(), "timeStamp"));
+            + ` as ${client.user?.tag}`
+            + dateToStr(new Date(), "timeStamp"));
 
         if (process.argv.includes('update')) {
             await deployCommands(serverList, client);
@@ -184,25 +184,30 @@ export async function loadScriptsFromDirectories(directoryPath: string = scripts
             .filter(file => file.endsWith('.js'))
 
         groupScripts.forEach(async file => {
+            try {
+                const relativePath = path.join(group, file);
 
-            const relativePath = path.join(group, file);
+                const fullPath = path.join(scriptsPath, relativePath);
 
-            const fullPath = path.join(scriptsPath, relativePath);
+                const scriptFile = require(fullPath);
 
-            const scriptFile = require(fullPath);
+                const guilds: ServerConfig[] = !groupConfig.global ? serverList.filter(server => groupConfig.guilds[server.serverId]) : [];
 
-            const guilds: ServerConfig[] = !groupConfig.global ? serverList.filter(server => groupConfig.guilds[server.serverId]) : [];
+                const script = scriptFile.script;
 
-            const script = scriptFile.script;
+                if (!(script instanceof ScriptBuilder)) return;
 
-            if (!(script instanceof ScriptBuilder)) return;
+                const enabled = !(script.name in featureSwitches) || featureSwitches[script.name];
+                script.setupScopes(enabled, groupConfig.global ? "global" : guilds);
 
-            const enabled = !(script.name in featureSwitches) || featureSwitches[script.name];
-            script.setupScopes(enabled, groupConfig.global ? "global" : guilds);
-
-            scriptsList.push(script);
-            intents = new Set([...intents, ...script.intents]);
-            partials = new Set([...partials, ...script.partials]);
+                scriptsList.push(script);
+                intents = new Set([...intents, ...script.intents]);
+                partials = new Set([...partials, ...script.partials]);
+            }
+            catch (error) {
+                printE(file + "/n");
+                throw error;
+            }
         });
     }
 

@@ -233,4 +233,18 @@ export async function interactionLog(username: string, commandName: string, opti
             , { foreground: 'yellow' }
         ) + dateToStr(new Date(), "timeStamp"));
 }
+
+export function shieldRegEx(str: string): string {
+    return str.replace(/[-[\]{}()*+?.,\\^$|#\s%]/g, "\$&");
+}
+
+export function replaceDictionary(content: string, dictionary: Record<string, any>, prefix: string = '[', postfix: string = ']'): string {
+    const regex = new RegExp(shieldRegEx(prefix) + "(\\w+)" + shieldRegEx(postfix), "g");
+    const groups = [...content.matchAll(regex)];
+    for (const group of groups) {
+        const key = group[0];
+        content = content.replace(key, String(dictionary[group[1]]));
+    }
+    return content;
+}
 //#endregion
