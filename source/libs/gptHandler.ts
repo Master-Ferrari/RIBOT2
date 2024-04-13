@@ -5,12 +5,16 @@ import { wait } from './discordUtils';
 import { G4F as G4F_, chunkProcessor } from "g4f";
 const g4f = new G4F_();
 
+const methods = ["Gpt4Free", "OpenAI"];
+export type Method = typeof methods[number];
+
 export const openaiModels = ['gpt-3.5-turbo-1106', 'gpt-4-1106-preview'];
 export type OpenaiModels = typeof openaiModels[number];
 
 export const g4fModels = ['gpt-4-32k', 'gpt-3.5-turbo-16k'];
 export type G4fModels = typeof openaiModels[number];
 
+export const allModels: Record<Method, string[]> = {"OpenAI": openaiModels, "Gpt4Free": g4fModels};
 export type AllModels = OpenaiModels | G4fModels;
 
 export type Message = { role: 'user' | 'assistant' | 'system', content: MessageContent };
@@ -88,8 +92,6 @@ type ChatResponse = {
         }>;
     }
 };
-
-type ApiType = 'Openai' | 'G4f';
 
 type OpenAICreateParams = {
     apiKey: string, tokens: number, model: OpenaiModels, temperature: number
@@ -241,14 +243,14 @@ export class G4f extends Gpt implements IGpt {
 }
 
 export class GptFactory {
-    static create(api: ApiType, params_: CreateParams): IGpt {
-        if (api === 'Openai') {
+    static create(api: Method, params_: CreateParams): IGpt {
+        if (api === "OpenAI") {
             if (!this.OpenAICreateParamsGuard(params_)) {
                 throw new Error("type error. OpenAICreateParams");
             }
             const params = (params_ as OpenAICreateParams);
             return new Openai(params.apiKey, params.tokens, params.model, params.temperature);
-        } else if (api === 'G4f') {
+        } else if (api === "Gpt4Free") {
             if (!this.G4FCreateParamsGuard(params_)) {
                 throw new Error("type error. G4FCreateParams");
             }
@@ -278,7 +280,7 @@ export class GptFactory {
 
 
 
-// const gpt = GptFactory.create('G4f', {
+// const gpt = GptFactory.create("Gpt4Free", {
 //     model: 'gpt-3.5-turbo'
 // }) as G4f;
 
@@ -290,7 +292,7 @@ export class GptFactory {
 //     print(text);
 // })
 
-// const gpt2 = GptFactory.create('Openai', {
+// const gpt2 = GptFactory.create("OpenAI", {
 //     // apiKey: 'sk-',
 //     tokens: 100,
 //     model: 'gpt-3.5-turbo',

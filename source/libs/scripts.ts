@@ -2,7 +2,7 @@ import {
     Client, Interaction, AutocompleteInteraction, ContextMenuCommandBuilder, Partials,
     SlashCommandSubcommandsOnlyBuilder, MessageContextMenuCommandInteraction, UserContextMenuCommandInteraction,
     SlashCommandBuilder, ChatInputCommandInteraction, ButtonInteraction, Message, BitFieldResolvable,
-    GatewayIntentsString, GatewayIntentBits, ChannelSelectMenuInteraction, StringSelectMenuInteraction, AnySelectMenuInteraction
+    GatewayIntentsString, GatewayIntentBits, ChannelSelectMenuInteraction, StringSelectMenuInteraction, AnySelectMenuInteraction, ModalSubmitInteraction
 } from 'discord.js';
 
 import { print, printD, printL, format, dateToStr, interactionLog, printE } from './consoleUtils';
@@ -196,7 +196,7 @@ export class ScriptBuilder {
             const commandName = interaction.message.id + "/SelectMenu/";
             const options = interaction.customId;
             await interactionLog(username, commandName, options, interaction.user.id);
-            
+
             if (!this.checkSetup()) return;
 
             if (!this.checkSettings(this._onButtonSettings, interaction.user.id, interaction.guild?.id)) return;
@@ -211,6 +211,38 @@ export class ScriptBuilder {
     } {
         return this.onSelectMenu !== undefined;
     }
+    //Modal
+    private _onModal?: (interaction: ModalSubmitInteraction) => Promise<void>;
+    private _onModalSettings: OnEventSettings = {
+        scopeGuilds: true,
+        scopeUsers: true
+    };
+    private _isValidModalCustomId?: (customId: string) => Promise<boolean>;
+    public get onModal() {
+        return async (interaction: Interaction) => {
+            if (!interaction.isModalSubmit()) return;
+            if (!(await this.isValidModalCustomId!(interaction.customId))) return;
+            const username = interaction.user.username;
+            const commandName = interaction.id + "/Modal/";
+            const options = interaction.customId;
+            await interactionLog(username, commandName, options, interaction.user.id);
+
+            if (!this.checkSetup()) return;
+
+            if (!this.checkSettings(this._onModalSettings, interaction.user.id, interaction.guild?.id)) return;
+
+            await this._onModal!(interaction);
+
+        }
+    }
+    public get isValidModalCustomId() { return this._isValidModalCustomId; }
+    public isModal(): this is ScriptBuilder & {
+        onModal: (interaction: ModalSubmitInteraction) => Promise<void>,
+        isValidModalCustomId: (customId: string) => Promise<boolean>
+    } {
+        return this.onModal !== undefined;
+    }
+
     //autocomplite
     private _onAutocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
     private _isValidAutocompleteCommandName?: (customId: string) => Promise<boolean>;
@@ -415,6 +447,22 @@ export class ScriptBuilder {
         return this;
     }
 
+    public addOnModal(
+        options: {
+            settings?: OnEventSettings,
+            isValidModalCustomId: (customId: string) => Promise<boolean>,
+            onModal: (interaction: ModalSubmitInteraction) => Promise<void>,
+        }
+    ) {
+        this._onModalSettings = {
+            ...this._onModalSettings,
+            ...options.settings
+        };
+        this._onModal = options.onModal;
+        this._isValidModalCustomId = options.isValidModalCustomId;
+        return this;
+    }
+
     public addOnAutocomplete(
         options: {
             isValidAutocompleteCommandName: (commandName: string) => Promise<boolean>,
@@ -451,6 +499,8 @@ export class ScriptBuilder {
             await this.onAutocomplete(interaction);
         if (this.onSelectMenu)
             await this.onSelectMenu(interaction);
+        if (this.onModal)
+            await this.onModal(interaction);
     }
 
 

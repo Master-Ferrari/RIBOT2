@@ -3,7 +3,7 @@ import { print, printD, printL, format, dateToStr } from '../../libs/consoleUtil
 import { ScriptBuilder } from '../../libs/scripts';
 
 import { GptFactory, G4f } from '../../libs/gptHandler';
-const gpt = GptFactory.create('G4f', {
+const gpt = GptFactory.create("Gpt4Free", {
     model: 'gpt-3.5-turbo'
 }) as G4f;
 

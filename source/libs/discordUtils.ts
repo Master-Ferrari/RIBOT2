@@ -3,13 +3,12 @@ import {
     WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable,
     EmbedBuilder, FetchMessagesOptions, ButtonStyle, ChannelType, ButtonBuilder,
     ChannelSelectMenuBuilder, MessageCreateOptions, MessageEditOptions,
-    MessageActionRowComponentBuilder, ActionRowBuilder, StringSelectMenuBuilder, SelectMenuComponentOptionData, SelectMenuDefaultValueType, APISelectMenuDefaultValue
+    MessageActionRowComponentBuilder, ActionRowBuilder, StringSelectMenuBuilder, SelectMenuComponentOptionData, SelectMenuDefaultValueType, APISelectMenuDefaultValue, User
 } from 'discord.js';
 
 import { print, printD, printE, printL, format, dateToStr } from './consoleUtils';
 import Database from "./sqlite"
-import { AllModels, G4fModels } from './gptHandler';
-import { Method } from '../scripts/GPT/gpt2';
+import { AllModels, G4fModels, Method } from './gptHandler';
 
 //#region TYPES
 export type ScriptScopes = {
@@ -24,6 +23,7 @@ export type GptSettings = {
     method: Method;
     model: AllModels;
     gptChannels: string[];
+    prompt: string;
 }
 
 export type GuildSetting = {
@@ -48,7 +48,7 @@ export function completeGuildSettings(partial: Partial<GuildSetting>): GuildSett
         botChannelId: '',
         mainWebhookLink: '',
         eventsChannelId: '',
-        gptSettings: { type: 'guildSettings', method: 'Gpt4Free', model: 'gpt-4-32k', gptChannels: [] }
+        gptSettings: { type: 'guildSettings', method: 'Gpt4Free', model: 'gpt-4-32k', gptChannels: [], prompt: '' }
     };
 
     return { ...defaultValues, ...partial };
@@ -339,6 +339,11 @@ type GuildInfo = Guild
         guildId: string;
     };
 
+type UserInfo =
+    {
+        userId: string;
+    };
+
 export class Fetcher {
 
     public static async guild(guild: GuildInfo, client: Client): Promise<Guild | undefined> {
@@ -476,6 +481,16 @@ export class Fetcher {
         catch (error) {
             printE('Error fetching messages:', error);
             return [];
+        }
+    }
+
+    public static async user(userInfo: UserInfo, client: Client): Promise<User | undefined> {
+        try {
+            return await client.users.fetch(userInfo.userId);
+        }
+        catch (error) {
+            printE('Error fetching user:', error);
+            return;
         }
     }
 

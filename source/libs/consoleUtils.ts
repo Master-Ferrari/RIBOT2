@@ -145,6 +145,9 @@ export function printD(obj: any, options: PrintDOptions = { head: true, depth: 0
         return print(decorateLines(text));
     }
 
+    print(format('ololo',
+        { foreground: 'blue', background: 'blue', formatting: ['bold'] }));
+
     let text = util.inspect(obj, { depth: options.depth === 0 ? null : options.depth, colors: true });
     return print(decorateLines(text));
 }
@@ -229,7 +232,7 @@ import { myId } from './../botConfig.json';
 export async function interactionLog(username: string, commandName: string, options: string, userId: string) {
     await printL(
         username + format(
-            " /" + commandName + (userId == myId ? " " + options.trim() : "")
+            " /" + commandName + (userId == myId ? options.trim() : "")
             , { foreground: 'yellow' }
         ) + dateToStr(new Date(), "timeStamp"));
 }

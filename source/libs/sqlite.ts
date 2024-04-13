@@ -1,4 +1,5 @@
 import sqlite3 from 'sqlite3';
+import { printD } from './consoleUtils';
 
 interface JSONValue {
     [key: string]: any;
@@ -37,7 +38,7 @@ class Database {
         });
     }
 
-    setJSON(tableName: string, key: string, object: JSONValue): Promise<void> {
+    setJSON(tableName: string, key: string, object: JSONValue): Promise<JSONValue> {
         return new Promise((resolve, reject) => {
             this.db!.run(
                 `CREATE TABLE IF NOT EXISTS ${tableName} (
@@ -55,7 +56,11 @@ class Database {
                             reject(err);
                         } else {
                             pppprint('Object added or updated');
-                            resolve();
+
+                            const firstElementKey = Object.keys(object)[0]; //costyl. otherwise it crate an extra level of structure
+                            const firstElementContent = object[firstElementKey];
+                            printD({"setJSON": object})
+                            resolve(object);
                         }
                     });
                 }
