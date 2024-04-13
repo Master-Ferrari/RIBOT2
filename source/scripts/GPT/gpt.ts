@@ -23,13 +23,11 @@ import {
 } from '../../libs/discordUtils';
 
 import { G4f, G4fModels, GptFactory, History, Method, Openai, allModels, g4fModels } from '../../libs/gptHandler';
-// import { openaikey } from '../../botConfig.json';
 import Database from '../../libs/sqlite';
 import { TTSFactory } from '../../libs/tts';
 import { ScriptBuilder } from '../../libs/scripts';
 
 const defaultVisionDistance = 15;
-// const defaultModel: G4fModels = "gpt-4-32k";
 
 const compNames = {
     cancel: "GptCancel", say: "GptSay", regenerate: "GptRegenerate",
@@ -77,8 +75,6 @@ type GptMessageData = {
 
 
 type Index = [string | number, string | number];
-
-// const selectedMethod: Method = "Gpt4Free";
 
 export const script = new ScriptBuilder({
     name: "gpt",
@@ -841,7 +837,7 @@ type GptSettingsTable = { [key: string]: GptSettings };
 class GptSettingsDbHandler {
 
     static defaultPrompt: string = `This is a chat room recording. You're a Discord bot. Your nickname is %botusername%.
-    ALWAYS use formatting for code and markup languages: \`\`\`[language name][the code itself]\`\`\` . Do not use this formatting for usual text.
+    ALWAYS use formatting for code and markup languages: \`\`\`[language name][the code itself]\`\`\` . Do not use any formatting for usual speech!
     Answer any last questions or messages.\n`+
         // `Reply in JSON format {"ans": "your answer"}!!!\n`+
         `Only answer in the language of the chat room! Communicate in a casual manner (as often written in chat rooms), but always make your point clearly.
