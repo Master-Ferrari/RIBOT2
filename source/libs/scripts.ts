@@ -219,6 +219,7 @@ export class ScriptBuilder {
     };
     private _isValidModalCustomId?: (customId: string) => Promise<boolean>;
     public get onModal() {
+        if (!this._onModal) return undefined;
         return async (interaction: Interaction) => {
             if (!interaction.isModalSubmit()) return;
             if (!(await this.isValidModalCustomId!(interaction.customId))) return;

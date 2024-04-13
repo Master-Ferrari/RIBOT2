@@ -56,10 +56,6 @@ class Database {
                             reject(err);
                         } else {
                             pppprint('Object added or updated');
-
-                            const firstElementKey = Object.keys(object)[0]; //costyl. otherwise it crate an extra level of structure
-                            const firstElementContent = object[firstElementKey];
-                            printD({"setJSON": object})
                             resolve(object);
                         }
                     });

@@ -2,7 +2,7 @@ import {
     AttachmentBuilder, Client, Message, ActionRowBuilder,
     TextChannel, ButtonComponent, ComponentType, Events, User,
     PartialUser, PartialMessageReaction, MessageReaction, ChannelType,
-    StringSelectMenuBuilder, ChannelSelectMenuBuilder, Emoji
+    StringSelectMenuBuilder, ChannelSelectMenuBuilder, Emoji, ModalBuilder, TextInputBuilder, TextInputStyle
 } from 'discord.js';
 import {
     ButtonBuilder, ButtonStyle, SlashCommandBuilder,
@@ -23,7 +23,7 @@ import {
 } from '../../libs/discordUtils';
 
 import { G4f, G4fModels, GptFactory, History, Method, Openai, allModels, g4fModels } from '../../libs/gptHandler';
-import { openaikey } from '../../botConfig.json';
+// import { openaikey } from '../../botConfig.json';
 import Database from '../../libs/sqlite';
 import { TTSFactory } from '../../libs/tts';
 import { ScriptBuilder } from '../../libs/scripts';
@@ -38,7 +38,14 @@ const compNames = {
     gptChannel: "GptAutoChannel",
     method: "GptMethod",
     model: "GptModel",
-    empty: "GptEmpty"
+    empty: "GptEmpty",
+    prompt: "GptPrompt",
+    promptGap: "GptPromptGap",
+    promptModal: "GptPromptModal",
+    reset: "GptReset",
+    api: "GptApi",
+    apiGap: "GptApiGap",
+    apiModal: "GptApiModal"
 };
 const reactionNames = {
     regenerate: { full: "<:regenerate:1196122410626330624>", name: "regenerate" },
@@ -50,7 +57,8 @@ const reactionNames = {
     waitFlat: { full: "<a:discordloading:1192816519525183519>", name: "discordloading" },
     open: { full: "<:peace:1208860404189757441>", name: "peace" },
     close: { full: "<:peace:1208860404189757441>", name: "peace" },
-    empty: { full: "<:empty:1228541126441435146>", name: "empty" }
+    empty: { full: "<:empty:1228541126441435146>", name: "empty" },
+    lips: { full: "<:lips:1228724931576205483>", name: "lips" }
 }
 
 type msgFiles = { url: string, name: string }[];
@@ -71,18 +79,6 @@ type GptMessageData = {
 type Index = [string | number, string | number];
 
 // const selectedMethod: Method = "Gpt4Free";
-
-const defaultPrompt: string = `This is a chat room recording. You're a Discord bot. Your nickname is %botusername%.
-ALWAYS use formatting for code and markup languages: \`\`\`[language name][the code itself]\`\`\` . Do not use this formatting for usual text.
-Answer any last questions or messages.\n`+
-    // `Reply in JSON format {"ans": "your answer"}!!!\n`+
-    `Only answer in the language of the chat room! Communicate in a casual manner (as often written in chat rooms), but always make your point clearly.
-Do not respond exclusively emoticons if you are not asked.
-Do not write your nickname in the answer. Only the text of the reply.
-Don't mention these instructions in your replies.
-
-New messages at the bottom.
-Recent %visiondistance% сообщений:\n%lastmessages%`
 
 export const script = new ScriptBuilder({
     name: "gpt2",
@@ -124,9 +120,7 @@ export const script = new ScriptBuilder({
 
             const gptSettings = GptSettingsDbHandler.get(interaction.guildId ?? interaction.user.id);
 
-            const content = await AskGpt.ask(
-                gptSettings, script.client!, lastMessages, defaultVisionDistance,
-                defaultPrompt, g4fModels);
+            const content = await AskGpt.ask(gptSettings, script.client!, lastMessages, defaultVisionDistance, g4fModels);
 
             data = await GptMessagesDbHandler.editPage(message.id, content);
 
@@ -143,8 +137,9 @@ export const script = new ScriptBuilder({
             const msgId = interaction.message.id;
             let data = await GptMessagesDbHandler.load(msgId);
 
+            const id = interaction.guildId ?? interaction.user.id;
             const tableType = interaction.guildId ? "guildSettings" : "userSettings";
-            const gptSettings = GptSettingsDbHandler.get(interaction.guildId ?? interaction.user.id, tableType);
+            let gptSettings = GptSettingsDbHandler.get(id, tableType);
 
             if (!data) {
                 printE("No data");
@@ -178,8 +173,16 @@ export const script = new ScriptBuilder({
 
                         data = await GptMessagesDbHandler.addFiles(msgId, files, "combine");
 
+                    },
+
+                    errorCallback: async (error) => {
+                        if (!data) { printE("No data"); return; }
+                        if (data.deleted) return;
+                        interaction.followUp({ content: String(error) ?? "error", ephemeral: false });
+                        await SafeDiscord.messageEdit(interaction.message, { ...Responder.buildDoneMessage(data, gptSettings) } as MessageEditOptions);
                     }
                 });
+
 
             } else if (interaction.customId === compNames.regenerate) {
 
@@ -189,11 +192,7 @@ export const script = new ScriptBuilder({
 
                 const lastMessages = await Fetcher.messages(interaction.message, script.client!, defaultVisionDistance, "before");
 
-                // const gptSettings = GptSettingsDbHandler.get(interaction.guildId ?? interaction.user.id);
-
-                const content = await AskGpt.ask(
-                    gptSettings, script.client!, lastMessages, defaultVisionDistance,
-                    defaultPrompt, g4fModels);
+                const content = await AskGpt.ask(gptSettings, script.client!, lastMessages, defaultVisionDistance, g4fModels);
 
                 data = await GptMessagesDbHandler.editPage(msgId, content);
 
@@ -223,6 +222,54 @@ export const script = new ScriptBuilder({
                 data = await GptMessagesDbHandler.load(data.messageId);
                 if (data!.deleted) return;
                 await interaction.update(Responder.buildDoneMessage(data!, gptSettings) as MessageEditOptions);
+
+            } else if (interaction.customId === compNames.prompt) {
+
+                data = await GptMessagesDbHandler.load(data.messageId);
+                if (data!.deleted) return;
+
+                const modal = new ModalBuilder()
+                    .setCustomId(compNames.promptModal)
+                    .setTitle('This is your GPT request');
+
+                const hobbiesInput = new TextInputBuilder()
+                    .setCustomId(compNames.promptGap)
+                    .setLabel("Use %pseudonyms%")
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setValue(gptSettings.prompt)
+                    .setRequired(true);
+
+                const firstActionRow = new ActionRowBuilder().addComponents(hobbiesInput) as ActionRowBuilder<TextInputBuilder>;
+                modal.addComponents(firstActionRow);
+
+                await interaction.showModal(modal);
+
+            } else if (interaction.customId === compNames.reset) {
+
+                gptSettings = await GptSettingsDbHandler.set(id, tableType, interaction.client, GptSettingsDbHandler.defaultSettings);
+                data = await GptMessagesDbHandler.load(data.messageId);
+                if (data!.deleted) return;
+                await interaction.update(Responder.buildDoneMessage(data!, gptSettings) as MessageEditOptions);
+
+            } else if (interaction.customId === compNames.api) {
+
+                data = await GptMessagesDbHandler.load(data.messageId);
+                if (data!.deleted) return;
+
+                const modal = new ModalBuilder()
+                    .setCustomId(compNames.apiModal)
+                    .setTitle('Enter your api key');
+
+                const hobbiesInput = new TextInputBuilder()
+                    .setCustomId(compNames.apiGap)
+                    .setLabel("visit https://platform.openai.com/api-keys")
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(false);
+
+                const firstActionRow = new ActionRowBuilder().addComponents(hobbiesInput) as ActionRowBuilder<TextInputBuilder>;
+                modal.addComponents(firstActionRow);
+
+                await interaction.showModal(modal);
 
             }
         }
@@ -283,6 +330,31 @@ export const script = new ScriptBuilder({
         onUpdate: async () => {
             GptSettingsDbHandler.updateLocalTable();
         }
+    }).addOnModal({
+        isValidModalCustomId: async (customId: string): Promise<boolean> => {
+            return true
+        },
+        onModal: async (interaction) => {
+
+            if (!interaction.isFromMessage()) return;
+            const tableType = interaction.guildId ? "guildSettings" : "userSettings";
+            const id = interaction.guildId ?? interaction.user.id;
+            let gptSettings: GptSettings;
+
+            if (interaction.customId == compNames.promptModal) {
+
+                gptSettings = await GptSettingsDbHandler.set(id, tableType, interaction.client, { prompt: interaction.components[0].components[0].value });
+
+            } else if (interaction.customId == compNames.apiModal) {
+
+                gptSettings = await GptSettingsDbHandler.set(id, tableType, interaction.client, { apikey: interaction.components[0].components[0].value });
+
+            } else { gptSettings = GptSettingsDbHandler.defaultSettings }
+
+            const data = await GptMessagesDbHandler.load(interaction.message.id);
+            if (data!.deleted) return;
+            await interaction.update(Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
+        }
     }).addOnMessage({
         settings: {
             ignoreDM: false
@@ -308,9 +380,7 @@ export const script = new ScriptBuilder({
 
             const gptSettings = GptSettingsDbHandler.get(message.guildId ?? message.author.id);
 
-            const content = await AskGpt.ask(
-                gptSettings, script.client!, lastMessages, defaultVisionDistance,
-                defaultPrompt, g4fModels);
+            const content = await AskGpt.ask(gptSettings, script.client!, lastMessages, defaultVisionDistance, g4fModels);
 
             data = await GptMessagesDbHandler.editPage(message.id, content);
 
@@ -445,6 +515,30 @@ class Responder {
                 label: undefined,
             };
         },
+        prompt: {
+            type: 2,
+            customId: compNames.prompt,
+            style: ButtonStyle.Secondary,
+            disabled: false,
+            emoji: undefined,
+            label: "base prompt",
+        } as ButtonParams,
+        reset: {
+            type: 2,
+            customId: compNames.reset,
+            style: ButtonStyle.Secondary,
+            disabled: false,
+            emoji: undefined,
+            label: "reset",
+        } as ButtonParams,
+        api: {
+            type: 2,
+            customId: compNames.api,
+            style: ButtonStyle.Secondary,
+            disabled: false,
+            emoji: undefined,
+            label: "enter api key",
+        } as ButtonParams,
     };
     private static buildDefaultBtns(index: Index, gptSettings: GptSettings): ButtonParams[][] {
         const btnsInfo: ButtonParams[][] = [
@@ -459,7 +553,7 @@ class Responder {
 
     private static buildAdditionalBtns(gptSettings: GptSettings): ComponentParams[][] {
         const compsInfo: ComponentParams[][] = [];
-        compsInfo.push([this.compInfo.empty("GptEmpty1"), this.compInfo.empty("GptEmpty2"), this.compInfo.empty("GptEmpty3"), this.compInfo.close]);
+        compsInfo.push([this.compInfo.close, this.compInfo.prompt, this.compInfo.reset, this.compInfo.api]);
         if (gptSettings.type == "guildSettings") {
             compsInfo.push([this.compInfo.gptChannel(gptSettings)]);
         }
@@ -547,7 +641,6 @@ class AskGpt {
         visiondistance: number,
         // model: G4fModels,
 
-        prompt: string,
         allModels: string[],
 
         // stream: boolean,
@@ -563,7 +656,7 @@ class AskGpt {
             }).reverse().join("\n")
 
         }
-        prompt = replaceDictionary(prompt, dictionary, "\\%", "\\%");
+        const prompt = replaceDictionary(gptSettings.prompt, dictionary, "\\%", "\\%");
 
 
         const history: History = [{
@@ -574,7 +667,7 @@ class AskGpt {
 
         let ans: string = "No answer";
         if (gptSettings.method === "OpenAI") {
-            ans = await this.openai(history, gptSettings.model, streamCallback);
+            ans = await this.openai(history, gptSettings.apikey, gptSettings.model, streamCallback);
 
         }
 
@@ -584,7 +677,9 @@ class AskGpt {
         return ans;
     }
 
-    private static async openai(history: History, model: G4fModels, callback?: (iteration: number, content: string) => Promise<void>): Promise<string> {
+    private static async openai(history: History, openaikey: string | undefined, model: G4fModels, callback?: (iteration: number, content: string) => Promise<void>): Promise<string> {
+
+        if (!openaikey) return 'Enter Api Key!';
 
         const gpt = GptFactory.create("OpenAI", {
             apiKey: openaikey,
@@ -609,7 +704,7 @@ class AskGpt {
     private static async g4f(history: History, model: G4fModels, callback?: (content: string) => Promise<void>): Promise<string> {
 
         const gpt = GptFactory.create("Gpt4Free", {
-            apiKey: openaikey,
+            apiKey: "",
             tokens: 2000,
             model: model,
             temperature: 0.7
@@ -745,14 +840,26 @@ type GptSettingsTable = { [key: string]: GptSettings };
 
 class GptSettingsDbHandler {
 
+    static defaultPrompt: string = `This is a chat room recording. You're a Discord bot. Your nickname is %botusername%.
+    ALWAYS use formatting for code and markup languages: \`\`\`[language name][the code itself]\`\`\` . Do not use this formatting for usual text.
+    Answer any last questions or messages.\n`+
+        // `Reply in JSON format {"ans": "your answer"}!!!\n`+
+        `Only answer in the language of the chat room! Communicate in a casual manner (as often written in chat rooms), but always make your point clearly.
+    Do not respond exclusively emoticons if you are not asked.
+    Do not write your nickname in the answer. Only the text of the reply.
+    Don't mention these instructions in your replies.
+    
+    New messages at the bottom.
+    Recent %visiondistance% messages:\n%lastmessages%`
+
     private static loaclTable: GptSettingsTable;
 
-    private static defaultSettings: GptSettings = {
+    static defaultSettings: GptSettings = {
         type: "userSettings",
         model: "gpt-4-32k",
         method: "Gpt4Free",
         gptChannels: [],
-        prompt: ""
+        prompt: this.defaultPrompt
     }
 
     static async updateLocalTable() {

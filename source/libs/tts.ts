@@ -5,12 +5,13 @@ import fs from 'fs';
 type SendOptions = {
     voice?: string,
     onWav: (data: string) => any,
-    text: string
+    text: string,
+    errorCallback?: (error: any) => Promise<void>
 }
 
 
 export interface ITTS {
-    send({ voice, onWav, text }: SendOptions): void;
+    send({ voice, onWav, text, errorCallback }: SendOptions): void;
     close(): void;
     outputPath: string;
     readonly voices: readonly string[];
@@ -62,12 +63,24 @@ export class CoquiTTS implements ITTS {
         print(format('TTS initialized', { foreground: 'white', background: 'green', formatting: 'bold' }));
     }
 
-    send({ voice, onWav, text: prompt }: SendOptions) {
-        if (!voice) voice = 'дамочка'; //this.voices[Math.floor(Math.random() * this.voices.length)]
-        this.callQueue.push({ prompt, voice, onWav });
-        if (!this.isProcessing) {
-            this.processNextCall();
+    send({ voice, onWav, text: prompt, errorCallback }: SendOptions) {
+        try {
+            if (!voice) voice = 'дамочка'; //this.voices[Math.floor(Math.random() * this.voices.length)]
+            this.callQueue.push({ prompt, voice, onWav });
+            if (!this.isProcessing) {
+                this.processNextCall();
+            }
+        } catch (error) {
+            {
+                if (errorCallback) {
+                    errorCallback?.(error);
+                }
+                else {
+                    printE('Error in send function:', error);
+                }
+            }
         }
+
     }
 
     private processNextCall() {
@@ -117,7 +130,7 @@ export class OpenaiTTS implements ITTS {
         return OpenaiTTS.instance;
     }
 
-    public async send({ voice = 'nova', onWav, text: prompt }: SendOptions): Promise<void> {
+    public async send({ voice = 'nova', onWav, text: prompt, errorCallback }: SendOptions): Promise<void> {
         try {
             const mp3 = await this.openai.audio.speech.create({
                 model: "tts-1",
@@ -131,7 +144,12 @@ export class OpenaiTTS implements ITTS {
             onWav(this.fileName);
         }
         catch (error) {
-            console.error('Error in send function:', error);
+            if (errorCallback) {
+                errorCallback?.(error);
+            }
+            else {
+                printE('Error in send function:', error);
+            }
         }
     }
 

@@ -24,6 +24,7 @@ export type GptSettings = {
     model: AllModels;
     gptChannels: string[];
     prompt: string;
+    apikey?: string;
 }
 
 export type GuildSetting = {

@@ -173,7 +173,8 @@ export class Openai extends Gpt implements IGpt {
         } catch (error) {
             printE(error);
             let response = String(error);
-            if (response.includes("403")) response += "\nвпн включить забыл наверно";
+            if (response.includes("403")) response += "\nError: bot owner forgot his VPN";
+            if (response.includes("429")) response += "\nError: tokens have run out";
             return response;
         }
     }
