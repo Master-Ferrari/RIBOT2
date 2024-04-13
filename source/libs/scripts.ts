@@ -2,7 +2,7 @@ import {
     Client, Interaction, AutocompleteInteraction, ContextMenuCommandBuilder, Partials,
     SlashCommandSubcommandsOnlyBuilder, MessageContextMenuCommandInteraction, UserContextMenuCommandInteraction,
     SlashCommandBuilder, ChatInputCommandInteraction, ButtonInteraction, Message, BitFieldResolvable,
-    GatewayIntentsString, GatewayIntentBits
+    GatewayIntentsString, GatewayIntentBits, ChannelSelectMenuInteraction, StringSelectMenuInteraction, AnySelectMenuInteraction
 } from 'discord.js';
 
 import { print, printD, printL, format, dateToStr, interactionLog, printE } from './consoleUtils';
@@ -140,7 +140,6 @@ export class ScriptBuilder {
             if (!this.checkSetup()) return;
 
             if (!this.checkSettings(this._onMessageSettings, message.author.id, message.guild?.id)) return;
-            
             if (this._onMessageSettings.ignoreDM && message.channel.isDMBased()) return;
             if (this._onMessageSettings.ignoreBots && message.author.bot) return;
 
@@ -156,12 +155,12 @@ export class ScriptBuilder {
         scopeGuilds: true,
         scopeUsers: true
     };
-    private _isValidCustomId?: (customId: string) => Promise<boolean>;
+    private _isValidButtonCustomId?: (customId: string) => Promise<boolean>;
     public get onButton() {
         if (!this._onButton) return undefined;
         return async (interaction: Interaction) => {
             if (!interaction.isButton()) return;
-            if (!(await this.isValidCustomId!(interaction.customId))) return;
+            if (!(await this.isValidButtonCustomId!(interaction.customId))) return;
             const username = interaction.user.username;
             const commandName = interaction.message.id + "/button/";
             const options = interaction.customId;
@@ -174,14 +173,44 @@ export class ScriptBuilder {
             await this._onButton!(interaction);
         }
     }
-    public get isValidCustomId() { return this._isValidCustomId; }
+    public get isValidButtonCustomId() { return this._isValidButtonCustomId; }
     public isButton(): this is ScriptBuilder & {
         onButton: (interaction: ButtonInteraction) => Promise<void>,
-        isValidCustomId: (customId: string) => Promise<boolean>
+        isValidButtonCustomId: (customId: string) => Promise<boolean>
     } {
         return this.onButton !== undefined;
     }
+    //selectMenu
+    private _onSelectMenu?: (interaction: AnySelectMenuInteraction) => Promise<void>;
+    private _onSelectMenuSettings: OnEventSettings = {
+        scopeGuilds: true,
+        scopeUsers: true
+    };
+    private _isValidSelectMenuCustomId?: (customId: string) => Promise<boolean>;
+    public get onSelectMenu() {
+        if (!this._onSelectMenu) return undefined;
+        return async (interaction: Interaction) => {
+            if (!interaction.isAnySelectMenu()) return;
+            if (!(await this.isValidSelectMenuCustomId!(interaction.customId))) return;
+            const username = interaction.user.username;
+            const commandName = interaction.message.id + "/SelectMenu/";
+            const options = interaction.customId;
+            await interactionLog(username, commandName, options, interaction.user.id);
+            
+            if (!this.checkSetup()) return;
 
+            if (!this.checkSettings(this._onButtonSettings, interaction.user.id, interaction.guild?.id)) return;
+
+            await this._onSelectMenu!(interaction);
+        }
+    }
+    public get isValidSelectMenuCustomId() { return this._isValidSelectMenuCustomId; }
+    public isSelectMenu(): this is ScriptBuilder & {
+        onSelectMenu: (interaction: AnySelectMenuInteraction) => Promise<void>,
+        isValidSelectMenuCustomId: (customId: string) => Promise<boolean>
+    } {
+        return this.onSelectMenu !== undefined;
+    }
     //autocomplite
     private _onAutocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
     private _isValidAutocompleteCommandName?: (customId: string) => Promise<boolean>;
@@ -357,7 +386,7 @@ export class ScriptBuilder {
     public addOnButton(
         options: {
             settings?: OnEventSettings,
-            isValidCustomId: (customId: string) => Promise<boolean>,
+            isValidButtonCustomId: (customId: string) => Promise<boolean>,
             onButton: (interaction: ButtonInteraction) => Promise<void>,
         }
     ) {
@@ -366,7 +395,23 @@ export class ScriptBuilder {
             ...options.settings
         };
         this._onButton = options.onButton;
-        this._isValidCustomId = options.isValidCustomId;
+        this._isValidButtonCustomId = options.isValidButtonCustomId;
+        return this;
+    }
+
+    public addOnSelectMenu(
+        options: {
+            settings?: OnEventSettings,
+            isValidSelectMenuCustomId: (customId: string) => Promise<boolean>,
+            onSelectMenu: (interaction: AnySelectMenuInteraction) => Promise<void>,
+        }
+    ) {
+        this._onSelectMenuSettings = {
+            ...this._onSelectMenuSettings,
+            ...options.settings
+        };
+        this._onSelectMenu = options.onSelectMenu;
+        this._isValidSelectMenuCustomId = options.isValidSelectMenuCustomId;
         return this;
     }
 
@@ -404,6 +449,8 @@ export class ScriptBuilder {
             await this.onContext(interaction);
         if (this.onAutocomplete)
             await this.onAutocomplete(interaction);
+        if (this.onSelectMenu)
+            await this.onSelectMenu(interaction);
     }
 
 

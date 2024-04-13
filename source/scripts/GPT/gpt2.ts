@@ -18,7 +18,8 @@ import {
     fetchLastNMessages, Fetcher, fetchMessage, GuildSetting,
     fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings,
     updateReactions, ScriptScopes, ComponentParams, ComponentBuilder,
-    SelectParams, ButtonParams, buildMessage, buildComponents, SafeDiscord
+    ChannelSelectParams, ButtonParams, buildMessage, buildComponents,
+    SafeDiscord, StringSelectParams, GptSettings, UserSetting, GptSettingsTableType
 } from '../../libs/discordUtils';
 
 import { G4f, G4fModels, GptFactory, History, Openai, g4fModels } from '../../libs/gptHandler';
@@ -26,17 +27,16 @@ import { openaikey } from '../../botConfig.json';
 import Database from '../../libs/sqlite';
 import { TTSFactory } from '../../libs/tts';
 import { ScriptBuilder } from '../../libs/scripts';
-import { METHODS } from 'http';
 
 const defaultVisionDistance = 15;
 const defaultModel: G4fModels = "gpt-4-32k";
-let guildSettingS: any;
 
 const compNames = {
     cancel: "GptCancel", say: "GptSay", regenerate: "GptRegenerate",
     left: "GptLeft", right: "GptRight", load: "GptLoad",
     open: "GptOpen", close: "GptClose",
-    autoChannel: "GptAutoChannel"
+    gptChannel: "GptAutoChannel",
+    method: "GptMethod"
 };
 const reactionNames = {
     regenerate: { full: "<:regenerate:1196122410626330624>", name: "regenerate" },
@@ -67,8 +67,9 @@ type GptMessageData = {
 
 type Index = [string | number, string | number];
 
-
-const method: "G4f" | "Openai" = "G4f";
+const methods = ["Gpt4Free", "OpenAI"];
+export type Method = typeof methods[number];
+// const selectedMethod: Method = "Gpt4Free";
 
 const prompt: string = `Это запись чата. Ты дискорд бот. Твой ник - %botusername%.
 Для кода и язков разметок ВСЕГДА используй форматирование: \`\`\`[название языка][сам код]\`\`\` .
@@ -116,28 +117,30 @@ export const script = new ScriptBuilder({
 
             let message = await channel.send(Responder.buildLoadingMessage() as MessageCreateOptions);
 
-            let data = await GptDbHandler.firstPage(message.id, "nothing here");
+            let data = await GptMessagesDbHandler.firstPage(message.id, "nothing here");
 
             const lastMessages = await Fetcher.messages(message, script.client!, defaultVisionDistance, "before");
 
+            const gptSettings = GptSettingsDbHandler.get(interaction.guildId ?? interaction.user.id);
+
             const content = await AskGpt.ask(
-                method, script.client!, lastMessages, defaultVisionDistance, defaultModel,
+                gptSettings.method, script.client!, lastMessages, defaultVisionDistance, defaultModel,
                 prompt, g4fModels);
 
-            data = await GptDbHandler.editPage(message.id, content);
+            data = await GptMessagesDbHandler.editPage(message.id, content);
 
             await SafeDiscord.messageEdit(message, Responder.buildDoneMessage(data!) as MessageEditOptions);
         }
     })
     .addOnButton({
-        isValidCustomId: async (customId: string) => {
+        isValidButtonCustomId: async (customId: string) => {
             return Object.values(compNames).includes(customId);
         },
 
         onButton: async (interaction) => {
 
             const msgId = interaction.message.id;
-            let data = await GptDbHandler.load(msgId);
+            let data = await GptMessagesDbHandler.load(msgId);
 
             if (!data) {
                 printE("No data");
@@ -146,7 +149,7 @@ export const script = new ScriptBuilder({
 
             if (interaction.customId === compNames.cancel) {
                 interaction.message.delete();
-                await GptDbHandler.delete(msgId);
+                await GptMessagesDbHandler.delete(msgId);
 
             } else if (interaction.customId === compNames.say) {
 
@@ -169,7 +172,7 @@ export const script = new ScriptBuilder({
 
                         const files: msgFiles = interaction.message.attachments.map(attachment => { return { url: attachment.url, name: attachment.name } });
 
-                        data = await GptDbHandler.addFiles(msgId, files, "combine");
+                        data = await GptMessagesDbHandler.addFiles(msgId, files, "combine");
 
                     }
                 });
@@ -178,57 +181,90 @@ export const script = new ScriptBuilder({
 
 
                 await interaction.update(Responder.buildLoadingButtonMessage(data, [compNames.regenerate], [compNames.say, compNames.left, compNames.right]) as MessageEditOptions);
-                data = await GptDbHandler.anotherPage(msgId, reactionNames.wait.full);
+                data = await GptMessagesDbHandler.anotherPage(msgId, reactionNames.wait.full);
 
                 const lastMessages = await Fetcher.messages(interaction.message, script.client!, defaultVisionDistance, "before");
 
+                const gptSettings = GptSettingsDbHandler.get(interaction.guildId ?? interaction.user.id);
+
                 const content = await AskGpt.ask(
-                    method, script.client!, lastMessages, defaultVisionDistance, defaultModel,
+                    gptSettings.method, script.client!, lastMessages, defaultVisionDistance, defaultModel,
                     prompt, g4fModels);
 
-                data = await GptDbHandler.editPage(msgId, content);
+                data = await GptMessagesDbHandler.editPage(msgId, content);
 
                 await SafeDiscord.messageEdit(interaction.message, Responder.buildDoneMessage(data!) as MessageEditOptions);
 
             } else if (interaction.customId === compNames.left) {
 
-                data = await GptDbHandler.loadPage(data.messageId, "left");
+                data = await GptMessagesDbHandler.loadPage(data.messageId, "left");
                 if (data.deleted) return;
                 await interaction.update(Responder.buildDoneMessage(data) as MessageEditOptions);
 
             } else if (interaction.customId === compNames.right) {
 
-                data = await GptDbHandler.loadPage(data.messageId, "right");
+                data = await GptMessagesDbHandler.loadPage(data.messageId, "right");
                 if (data.deleted) return;
                 await interaction.update(Responder.buildDoneMessage(data) as MessageEditOptions);
 
             } else if (interaction.customId === compNames.open) {
 
-                data = await GptDbHandler.load(data.messageId);
+                data = await GptMessagesDbHandler.load(data.messageId);
                 if (data!.deleted) return;
-                await interaction.update(Responder.buildOptionsMessage(data!) as MessageEditOptions);
+                const gptSettings = GptSettingsDbHandler.get(interaction.guildId ?? interaction.user.id);
+                await interaction.update(Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
 
             } else if (interaction.customId === compNames.close) {
 
-                data = await GptDbHandler.load(data.messageId);
+                data = await GptMessagesDbHandler.load(data.messageId);
                 if (data!.deleted) return;
                 await interaction.update(Responder.buildDoneMessage(data!) as MessageEditOptions);
 
             }
         }
     })
+    .addOnSelectMenu({
+        isValidSelectMenuCustomId: async (customId: string) => {
+            printD({ "isValidSelectMenuCustomId": customId })
+            return true;
+        },
+        onSelectMenu: async (interaction) => {
+
+            if (interaction.customId == compNames.method) {
+
+                const tableType = interaction.guildId ? "guildSettings" : "userSettings";
+                const id = interaction.guildId ?? interaction.user.id;
+
+                GptSettingsDbHandler.set(id, tableType, { method: interaction.values[0] });
+
+                const data = await GptMessagesDbHandler.load(interaction.message.id);
+                if (data!.deleted) return;
+                const gptSettings = GptSettingsDbHandler.get(interaction.guildId ?? interaction.user.id);
+                await interaction.update(Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
+            }
+
+            if (interaction.customId == compNames.gptChannel) {
+                if (!interaction.guildId) {
+                    return;
+                }
+
+                GptSettingsDbHandler.set(interaction.guildId, "guildSettings", { gptChannels: interaction.values });
+
+                const data = await GptMessagesDbHandler.load(interaction.message.id);
+                if (data!.deleted) return;
+                const gptSettings = GptSettingsDbHandler.get(interaction.guildId ?? interaction.user.id);
+                await interaction.update(Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
+            }
+        }
+    })
     .addOnStart({
         onStart: async () => {
-            guildSettingS = await Database.interact('database.db', async (db) => {
-                return await db.getTable('guildSettings');
-            });
+            GptSettingsDbHandler.updateLocalTable();
         }
     })
     .addOnUpdate({
         onUpdate: async () => {
-            guildSettingS = await Database.interact('database.db', async (db) => {
-                return await db.getTable('guildSettings');
-            });
+            GptSettingsDbHandler.updateLocalTable();
         }
     }).addOnMessage({
         settings: {
@@ -236,9 +272,12 @@ export const script = new ScriptBuilder({
         },
         onMessage: async (userMessage) => {
 
-            if (!userMessage.channel.isDMBased() &&
-                userMessage.guildId &&
-                guildSettingS[userMessage.guildId]?.gptChannelId !== userMessage.channelId) return;
+            if (!userMessage.channel.isDMBased() && userMessage.guildId) {
+                const allowedChannel = GptSettingsDbHandler.get(userMessage.guildId)?.gptChannels.find((channel) => {
+                    if (userMessage.channelId === channel) return true
+                })
+                if (!allowedChannel) return
+            }
 
             interactionLog(userMessage.author.tag, "gpt", userMessage.content, userMessage.author.id);
 
@@ -246,15 +285,17 @@ export const script = new ScriptBuilder({
 
             let message = await channel.send(Responder.buildLoadingMessage() as MessageCreateOptions);
 
-            let data = await GptDbHandler.firstPage(message.id, "nothing here");
+            let data = await GptMessagesDbHandler.firstPage(message.id, "nothing here");
 
             const lastMessages = await Fetcher.messages(message, script.client!, defaultVisionDistance, "before");
 
+            const gptSettings = GptSettingsDbHandler.get(message.guildId ?? message.author.id);
+
             const content = await AskGpt.ask(
-                method, script.client!, lastMessages, defaultVisionDistance, defaultModel,
+                gptSettings.method, script.client!, lastMessages, defaultVisionDistance, defaultModel,
                 prompt, g4fModels);
 
-            data = await GptDbHandler.editPage(message.id, content);
+            data = await GptMessagesDbHandler.editPage(message.id, content);
 
             await SafeDiscord.messageEdit(message, Responder.buildDoneMessage(data!) as MessageEditOptions);
 
@@ -286,7 +327,7 @@ class Responder {
             type: 2,
             customId: compNames.say,
             style: ButtonStyle.Secondary,
-            disabled: false,
+            disabled: true,
             emoji: reactionNames.say.full,
             label: undefined,
         } as ButtonParams,
@@ -342,15 +383,32 @@ class Responder {
             emoji: reactionNames.close.full,
             label: undefined,
         } as ButtonParams,
-        autoChannel: {
-            type: 8,
-            customId: compNames.autoChannel,
-            disabled: false,
-            placeholder: undefined,
-            channelTypes: [ChannelType.GuildVoice],
-        } as SelectParams,
+        gptChannel(guildSetting?: GptSettings): ChannelSelectParams {
+            printD({ guildSetting })
+            return {
+                type: 8,
+                customId: compNames.gptChannel,
+                disabled: false,
+                placeholder: "Select GPT channel.",
+                channelTypes: [ChannelType.GuildText],
+                min_values: 0,
+                max_values: 25,
+                default_values: guildSetting?.gptChannels ?? [],
+            } as ChannelSelectParams
+        },
+        method(selectedMethod: string): StringSelectParams {
+            return {
+                type: 3,
+                customId: compNames.method,
+                disabled: false,
+                placeholder: "Select API method. (" + selectedMethod + " is selected)",
+                options: [
+                    { label: "OpenAI", value: "OpenAI" },
+                    { label: "Gpt4Free", value: "Gpt4Free" },
+                ]
+            } as StringSelectParams
+        },
     };
-
     private static buildDefaultBtns(index: Index): ButtonParams[][] {
         const btnsInfo: ButtonParams[][] = [
             [this.compInfo.cancel, this.compInfo.say, this.compInfo.regenerate, this.compInfo.open]
@@ -362,10 +420,11 @@ class Responder {
         return btnsInfo;
     }
 
-    private static buildAdditionalBtns(): ComponentParams[][] {
+    private static buildAdditionalBtns(gptSettings: GptSettings): ComponentParams[][] {
         const compsInfo: ComponentParams[][] = [];
         compsInfo.push([this.compInfo.load('1'), this.compInfo.load('2'), this.compInfo.load('3'), this.compInfo.close]);
-        compsInfo.push([this.compInfo.autoChannel]);
+        compsInfo.push([this.compInfo.gptChannel(gptSettings)]);
+        compsInfo.push([this.compInfo.method(gptSettings.method)]);
         return compsInfo;
     }
     // #endregion
@@ -421,13 +480,13 @@ class Responder {
         return buildMessage({ content: data.answers[data.currentIndex].content, files }, btns);
     }
 
-    public static buildOptionsMessage(data: GptMessageData): MessageCreateOptions | MessageEditOptions {
+    public static buildOptionsMessage(data: GptMessageData, gptSettings: GptSettings): MessageCreateOptions | MessageEditOptions {
 
         const files = data.answers[data.currentIndex].files.map(file => {
             return new AttachmentBuilder(file.url, { name: file.name });
         });
 
-        const btnsInfo: ComponentParams[][] = this.buildAdditionalBtns();
+        const btnsInfo: ComponentParams[][] = this.buildAdditionalBtns(gptSettings);
         const btns = buildComponents(btnsInfo);
         return buildMessage({ content: data.answers[data.currentIndex].content, files }, btns);
     }
@@ -439,7 +498,7 @@ class AskGpt {
 
 
     static async ask(
-        method: "Openai" | "G4f",
+        method: Method,
 
         client: Client,
         lastMessages: Message[],
@@ -471,15 +530,13 @@ class AskGpt {
         }];
         history.reverse();
 
-        printD({ history });
-
         let ans: string = "No answer";
-        if (method === "Openai") {
+        if (method === "OpenAI") {
             ans = await this.openai(history, model, streamCallback);
 
         }
 
-        if (method === "G4f") {
+        if (method === "Gpt4Free") {
             ans = await this.g4f(history, model, callback);
         }
         return ans;
@@ -529,7 +586,7 @@ class AskGpt {
 
 
 
-class GptDbHandler {
+class GptMessagesDbHandler {
     private static _gptMessagesTableName = 'gptMessages';
     private static _db: string = 'database.db';
     constructor() { }
@@ -638,6 +695,57 @@ class GptDbHandler {
             await db.setJSON(this._gptMessagesTableName, messageId, data)
         })
         return data;
+    }
+
+}
+
+type GptSettingsTable = { [key: string]: GptSettings };
+
+class GptSettingsDbHandler {
+
+    private static loaclTable: GptSettingsTable;
+
+    private static defaultSettings: GptSettings = {
+        type: "userSettings",
+        model: "gpt-4-32k",
+        method: "Gpt4Free",
+        gptChannels: []
+    }
+
+    static async updateLocalTable() {
+        this.loaclTable = await Database.interact('database.db', async (db) => {
+            const guilds = Object.values(await db.getTable('guildSettings') as GuildSetting[]);
+            let combinedSettings: GptSettingsTable = {};
+            if (guilds) {
+                printD({ guilds })
+                combinedSettings = guilds.reduce((acc: { [key: string]: GptSettings }, guild: GuildSetting) => {
+                    if (!guild) return acc;
+                    try { acc[guild.guildId] = guild.gptSettings; } catch { }
+                    return acc;
+                }, {});
+            };
+            const users = await db.getTable('userSettings');
+            if (users) {
+                combinedSettings = users.reduce((acc: { [key: string]: GptSettings }, user: UserSetting) => {
+                    if (!user) return acc;
+                    try { acc[user.userId] = user.gptSettings; } catch { }
+                    return acc;
+                }, { ...combinedSettings });
+            }
+            printD({ combinedSettings });
+            return combinedSettings;
+        });
+    }
+
+    static get(id: string): GptSettings {
+        return this.loaclTable[id] ?? this.defaultSettings;
+    }
+
+    static async set(id: string, table: GptSettingsTableType, gptSettings: Partial<GptSettings>) {
+        this.loaclTable[id] = { ...this.defaultSettings, ...this.loaclTable[id], ...gptSettings };
+        await Database.interact('database.db', async (db) => {
+            await db.setJSON(table, id, this.loaclTable[id]);
+        });
     }
 
 }

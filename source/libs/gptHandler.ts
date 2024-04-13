@@ -11,6 +11,8 @@ export type OpenaiModels = typeof openaiModels[number];
 export const g4fModels = ['gpt-4-32k', 'gpt-3.5-turbo-16k'];
 export type G4fModels = typeof openaiModels[number];
 
+export type AllModels = OpenaiModels | G4fModels;
+
 export type Message = { role: 'user' | 'assistant' | 'system', content: MessageContent };
 export type History = Message[];
 

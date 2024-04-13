@@ -302,7 +302,7 @@ export const script = new ScriptBuilder({
         await commander.editMessages(script.client!);
     },
 }).addOnButton({
-    isValidCustomId: async (customId) => {
+    isValidButtonCustomId: async (customId) => {
         for (const commandMessage of commander.commandMessages) {
             for (const row of commandMessage.components) {
                 for (const btn of row) {

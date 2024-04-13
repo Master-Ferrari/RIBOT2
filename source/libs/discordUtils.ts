@@ -3,11 +3,13 @@ import {
     WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable,
     EmbedBuilder, FetchMessagesOptions, ButtonStyle, ChannelType, ButtonBuilder,
     ChannelSelectMenuBuilder, MessageCreateOptions, MessageEditOptions,
-    MessageActionRowComponentBuilder, ActionRowBuilder
+    MessageActionRowComponentBuilder, ActionRowBuilder, StringSelectMenuBuilder, SelectMenuComponentOptionData, SelectMenuDefaultValueType, APISelectMenuDefaultValue
 } from 'discord.js';
 
 import { print, printD, printE, printL, format, dateToStr } from './consoleUtils';
 import Database from "./sqlite"
+import { AllModels, G4fModels } from './gptHandler';
+import { Method } from '../scripts/GPT/gpt2';
 
 //#region TYPES
 export type ScriptScopes = {
@@ -16,14 +18,28 @@ export type ScriptScopes = {
     usersWhitelist?: Array<string>;
 }
 
+export type GptSettingsTableType = "userSettings" | "guildSettings";
+export type GptSettings = {
+    type: GptSettingsTableType;
+    method: Method;
+    model: AllModels;
+    gptChannels: string[];
+}
+
 export type GuildSetting = {
     guildName: string;
     guildId: string;
     botChannelId: string;
     mainWebhookLink: string;
     eventsChannelId: string;
-    gptChannelId: string;
+    gptSettings: GptSettings;
 };
+
+export type UserSetting = {
+    userName: string;
+    userId: string;
+    gptSettings: GptSettings;
+}
 
 export function completeGuildSettings(partial: Partial<GuildSetting>): GuildSetting {
     const defaultValues: GuildSetting = {
@@ -32,7 +48,7 @@ export function completeGuildSettings(partial: Partial<GuildSetting>): GuildSett
         botChannelId: '',
         mainWebhookLink: '',
         eventsChannelId: '',
-        gptChannelId: '',
+        gptSettings: { type: 'guildSettings', method: 'Gpt4Free', model: 'gpt-4-32k', gptChannels: [] }
     };
 
     return { ...defaultValues, ...partial };
@@ -47,19 +63,32 @@ export type ButtonParams = {
     label: string | undefined
 };
 
-export type SelectParams = {
+export type ChannelSelectParams = {
     type: 8,
     customId: string,
     channelTypes: ChannelType[],
     placeholder: string | undefined,
     disabled: boolean,
+    default_values?: string[],
+    min_values?: number,
+    max_values?: number
 };
 
-export type ComponentParams = (ButtonParams | SelectParams);
+export type StringSelectParams = {
+    type: 3,
+    customId: string,
+    options: SelectMenuComponentOptionData[],
+    placeholder: string | undefined,
+    disabled: boolean,
+    min_values?: number,
+    max_values?: number
+};
+
+export type ComponentParams = (ButtonParams | ChannelSelectParams | StringSelectParams);
 export type ComponentRow = ComponentParams[];
 export type ComponentsData = ComponentRow[];
 
-export type ComponentBuilder = (ButtonBuilder | ChannelSelectMenuBuilder);
+export type ComponentBuilder = (ButtonBuilder | ChannelSelectMenuBuilder | StringSelectMenuBuilder);
 //#endregion
 
 //#region database
@@ -473,24 +502,41 @@ export function buildMessage(options: MessageCreateOptions, components: Componen
 
 export function buildComponents(data: ComponentParams[][]): ComponentBuilder[][] {
     return data.map(row => {
-        return row.map(btnInfo => {
-            if (btnInfo.type === 2) {
+        return row.map(cmpInfo => {
+
+            if (cmpInfo.type === 2) {
                 const button = new ButtonBuilder()
-                    .setCustomId(btnInfo.customId)
-                    .setStyle(btnInfo.style)
-                    .setDisabled(btnInfo.disabled);
-                if (btnInfo.emoji) button.setEmoji(btnInfo.emoji);
-                if (btnInfo.label) button.setLabel(btnInfo.label);
+                    .setCustomId(cmpInfo.customId)
+                    .setStyle(cmpInfo.style)
+                    .setDisabled(cmpInfo.disabled);
+                if (cmpInfo.emoji) button.setEmoji(cmpInfo.emoji);
+                if (cmpInfo.label) button.setLabel(cmpInfo.label);
                 return button;
-            } else if (btnInfo.type === 8) {
-                {
-                    const select = new ChannelSelectMenuBuilder()
-                        .setCustomId(btnInfo.customId)
-                        .setDisabled(btnInfo.disabled);
-                    if (btnInfo.placeholder) select.setPlaceholder(btnInfo.placeholder);
-                    return select;
-                }
+
+            } else if (cmpInfo.type === 8) {
+                const select = new ChannelSelectMenuBuilder()
+                    .addChannelTypes(cmpInfo.channelTypes)
+                    .setMinValues(cmpInfo.min_values || 1)
+                    .setMaxValues(cmpInfo.max_values || 1)
+                    .setCustomId(cmpInfo.customId)
+                    .setDisabled(cmpInfo.disabled);
+                if (cmpInfo.default_values)
+                    select.setDefaultChannels(cmpInfo.default_values);
+                if (cmpInfo.placeholder) select.setPlaceholder(cmpInfo.placeholder);
+                return select;
+
+            } else if (cmpInfo.type === 3) {
+                const select = new StringSelectMenuBuilder()
+                    .addOptions(cmpInfo.options)
+                    .setMinValues(cmpInfo.min_values || 1)
+                    .setMaxValues(cmpInfo.max_values || 1)
+                    .setCustomId(cmpInfo.customId)
+                    .setDisabled(cmpInfo.disabled);
+                if (cmpInfo.placeholder) select.setPlaceholder(cmpInfo.placeholder);
+                return select;
+
             }
+
         }).filter(x => x !== undefined) as ComponentBuilder[];
     });
 }

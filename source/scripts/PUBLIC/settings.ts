@@ -32,11 +32,12 @@ export const script = new ScriptBuilder({
                         .setDescription('events channel')
                         .setRequired(false)
                         .addChannelTypes(ChannelType.GuildText))
-                .addChannelOption(option =>
-                    option.setName('gptchannel')
-                        .setDescription('gpt channel')
-                        .setRequired(false)
-                        .addChannelTypes(ChannelType.GuildText)))
+            // .addChannelOption(option =>
+            //     option.setName('gptchannel')
+            //         .setDescription('gpt channel')
+            //         .setRequired(false)
+            //         .addChannelTypes(ChannelType.GuildText))
+        )
         .addSubcommand(subcommand =>
             subcommand
                 .setName('get')
@@ -62,12 +63,12 @@ export const script = new ScriptBuilder({
             }
 
             guildSetting = {
+                ...guildSetting,
                 guildName: interaction.guild?.name || guildSetting.guildName || "",
                 guildId: interaction.guild?.id || guildSetting.guildId || "",
                 botChannelId: botsChannel?.id || guildSetting.botChannelId || "",
                 mainWebhookLink: mainWebhook || guildSetting.mainWebhookLink || "",
                 eventsChannelId: eventsChannel?.id || guildSetting.eventsChannelId || "",
-                gptChannelId: gptchannel?.id || guildSetting.gptChannelId || "",
             };
 
             await db.setJSON('guildSettings', String(interaction.guildId), guildSetting);
@@ -90,7 +91,7 @@ export const script = new ScriptBuilder({
         const scriptsData = await loadScriptsFromDirectories();
 
 
-        await printL(format(`Update!`, { foreground: 'white', background: 'yellow', formatting: ['italic','bold'] }));
+        await printL(format(`Update!`, { foreground: 'white', background: 'yellow', formatting: ['italic', 'bold'] }));
 
         for (const script of scriptsData.scriptsList) {
             if (script.isUpdate()) {
