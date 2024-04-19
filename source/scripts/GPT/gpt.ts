@@ -26,6 +26,7 @@ import { G4f, G4fModels, GptFactory, History, Method, Openai, allModels, g4fMode
 import Database from '../../libs/sqlite';
 import { TTSFactory } from '../../libs/tts';
 import { ScriptBuilder } from '../../libs/scripts';
+import axios from 'axios';
 
 const defaultVisionDistance = 15;
 
@@ -646,12 +647,27 @@ class AskGpt {
         const dictionary = {
             "botusername": client.user?.username,
             "visiondistance": visiondistance,
-            "lastmessages": lastMessages.map(msg => {
-                const name = allModels.find(m => m === msg.author.username) ? client.user?.username : msg.author.username
+            "lastmessages": (await Promise.all(lastMessages.map(async function (msg: Message) {
+                const name = allModels.find(m => m === msg.author.username) ? client.user?.username : msg.author.username;
+                if (msg.attachments && msg.attachments.size > 0) {
+                    const attachment = msg.attachments.find(attachment => attachment.name === "message.txt");
+                    if (attachment) {
+                        return `${name}:\n«${msg.content}\n${await urlToText(attachment.url)}»`;
+                    }
+                }
                 return `${name}:\n«${msg.content}»`;
-            }).reverse().join("\n")
+                async function urlToText(url: string): Promise<string> {
+                    try {
+                        const response = await axios.get(url);
+                        return response.data;
+                    } catch (error) {
+                        printE('Error getting text from url:', error);
+                        return '';
+                    }
+                }
+            }))).reverse().join("\n")
+        };
 
-        }
         const prompt = replaceDictionary(gptSettings.prompt, dictionary, "\\%", "\\%");
 
 
@@ -670,7 +686,10 @@ class AskGpt {
         if (gptSettings.method === "Gpt4Free") {
             ans = await this.g4f(history, gptSettings.model, callback);
         }
-        return ans;
+
+        ans = ans.replace(/^[«»""]*|[«»""]*$/g, '');
+
+        return String(ans);
     }
 
     private static async openai(history: History, openaikey: string | undefined, model: G4fModels, callback?: (iteration: number, content: string) => Promise<void>): Promise<string> {

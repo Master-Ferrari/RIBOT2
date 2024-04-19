@@ -3,7 +3,7 @@ import {
     WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable,
     EmbedBuilder, FetchMessagesOptions, ButtonStyle, ChannelType, ButtonBuilder,
     ChannelSelectMenuBuilder, MessageCreateOptions, MessageEditOptions,
-    MessageActionRowComponentBuilder, ActionRowBuilder, StringSelectMenuBuilder, SelectMenuComponentOptionData, SelectMenuDefaultValueType, APISelectMenuDefaultValue, User
+    MessageActionRowComponentBuilder, ActionRowBuilder, StringSelectMenuBuilder, SelectMenuComponentOptionData, SelectMenuDefaultValueType, APISelectMenuDefaultValue, User, AttachmentBuilder
 } from 'discord.js';
 
 import { print, printD, printE, printL, format, dateToStr } from './consoleUtils';
@@ -572,7 +572,14 @@ export class SafeDiscord {
 
     static async messageEdit(message: Message, options: MessageEditOptions): Promise<Message | undefined> {
         return this.trycatch(
-            async () => await message.edit(options)
+
+            async () => {
+                if (options.content && options.content.length > 2000) {
+                    options.files = [new AttachmentBuilder(Buffer.from(options.content, 'utf-8'), { name: 'message.txt' })];
+                    options.content = '...';
+                }
+                return await message.edit(options)
+            }
         );
     }
 
