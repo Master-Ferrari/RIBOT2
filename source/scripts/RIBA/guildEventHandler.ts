@@ -23,7 +23,6 @@ export const script = new ScriptBuilder({
             "guildScheduledEventUserAdd",
             "guildScheduledEventUserRemove"
         ];
-        print("///")
         events.forEach(event => {
             script.client!.on(event, async (...args: any[]) => await new Promise(async () => {
 

@@ -152,7 +152,7 @@ export const script = new ScriptBuilder({
                 let tts = TTSFactory.createTTS();
                 const content = interaction.message.content.replace(/```.*?```/gs, ". код читать не буду. ");
 
-                await interaction.update(Responder.buildLoadingButtonMessage(data, [compNames.say], gptSettings, [compNames.regenerate, compNames.left, compNames.right]) as MessageEditOptions);
+                await SafeDiscord.interactionUpdate(interaction, Responder.buildLoadingButtonMessage(data, [compNames.say], gptSettings, [compNames.regenerate, compNames.left, compNames.right]) as MessageEditOptions);
 
                 tts.send({
                     text: content,
@@ -183,8 +183,7 @@ export const script = new ScriptBuilder({
 
             } else if (interaction.customId === compNames.regenerate) {
 
-
-                await interaction.update(Responder.buildLoadingButtonMessage(data, [compNames.regenerate], gptSettings, [compNames.say, compNames.left, compNames.right]) as MessageEditOptions);
+                await SafeDiscord.interactionUpdate(interaction, Responder.buildLoadingButtonMessage(data, [compNames.regenerate], gptSettings, [compNames.say, compNames.left, compNames.right]) as MessageEditOptions);
                 data = await GptMessagesDbHandler.anotherPage(msgId, reactionNames.wait.full);
 
                 const lastMessages = await Fetcher.messages(interaction.message, script.client!, defaultVisionDistance, "before");
@@ -199,26 +198,26 @@ export const script = new ScriptBuilder({
 
                 data = await GptMessagesDbHandler.loadPage(data.messageId, "left");
                 if (data.deleted) return;
-                await interaction.update(Responder.buildDoneMessage(data, gptSettings) as MessageEditOptions);
+                await SafeDiscord.interactionUpdate(interaction, Responder.buildDoneMessage(data, gptSettings) as MessageEditOptions);
 
             } else if (interaction.customId === compNames.right) {
 
                 data = await GptMessagesDbHandler.loadPage(data.messageId, "right");
                 if (data.deleted) return;
-                await interaction.update(Responder.buildDoneMessage(data, gptSettings) as MessageEditOptions);
+                await SafeDiscord.interactionUpdate(interaction, Responder.buildDoneMessage(data, gptSettings) as MessageEditOptions);
 
             } else if (interaction.customId === compNames.open) {
 
                 data = await GptMessagesDbHandler.load(data.messageId);
                 if (data!.deleted) return;
 
-                await interaction.update(Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
+                await SafeDiscord.interactionUpdate(interaction, Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
 
             } else if (interaction.customId === compNames.close) {
 
                 data = await GptMessagesDbHandler.load(data.messageId);
                 if (data!.deleted) return;
-                await interaction.update(Responder.buildDoneMessage(data!, gptSettings) as MessageEditOptions);
+                await SafeDiscord.interactionUpdate(interaction, Responder.buildDoneMessage(data!, gptSettings) as MessageEditOptions);
 
             } else if (interaction.customId === compNames.prompt) {
 
@@ -246,7 +245,7 @@ export const script = new ScriptBuilder({
                 gptSettings = await GptSettingsDbHandler.set(id, tableType, interaction.client, GptSettingsDbHandler.defaultSettings);
                 data = await GptMessagesDbHandler.load(data.messageId);
                 if (data!.deleted) return;
-                await interaction.update(Responder.buildDoneMessage(data!, gptSettings) as MessageEditOptions);
+                await SafeDiscord.interactionUpdate(interaction, Responder.buildDoneMessage(data!, gptSettings) as MessageEditOptions);
 
             } else if (interaction.customId === compNames.api) {
 
@@ -287,7 +286,7 @@ export const script = new ScriptBuilder({
                 const gptSettings = await GptSettingsDbHandler.set(interaction.guildId, tableType, interaction.client, { gptChannels: interaction.values });
                 const data = await GptMessagesDbHandler.load(interaction.message.id);
                 if (data!.deleted) return;
-                await interaction.update(Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
+                await SafeDiscord.interactionUpdate(interaction, Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
             }
 
             if (interaction.customId == compNames.method) {
@@ -303,7 +302,7 @@ export const script = new ScriptBuilder({
                 gptSettings = await GptSettingsDbHandler.set(id, tableType, interaction.client, { method: interaction.values[0] });
                 const data = await GptMessagesDbHandler.load(interaction.message.id);
                 if (data!.deleted) return;
-                await interaction.update(Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
+                await SafeDiscord.interactionUpdate(interaction, Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
             }
 
             if (interaction.customId == compNames.model) {
@@ -314,7 +313,7 @@ export const script = new ScriptBuilder({
 
                 const data = await GptMessagesDbHandler.load(interaction.message.id);
                 if (data!.deleted) return;
-                await interaction.update(Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
+                await SafeDiscord.interactionUpdate(interaction, Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
             }
         }
     })
@@ -350,7 +349,7 @@ export const script = new ScriptBuilder({
 
             const data = await GptMessagesDbHandler.load(interaction.message.id);
             if (data!.deleted) return;
-            await interaction.update(Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
+            await SafeDiscord.interactionUpdate(interaction, Responder.buildOptionsMessage(data!, gptSettings) as MessageEditOptions);
         }
     }).addOnMessage({
         settings: {
@@ -680,7 +679,6 @@ class AskGpt {
         let ans: string = "No answer";
         if (gptSettings.method === "OpenAI") {
             ans = await this.openai(history, gptSettings.apikey, gptSettings.model, streamCallback);
-
         }
 
         if (gptSettings.method === "Gpt4Free") {

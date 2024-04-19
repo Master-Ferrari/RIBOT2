@@ -3,7 +3,7 @@ import {
     WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable,
     EmbedBuilder, FetchMessagesOptions, ButtonStyle, ChannelType, ButtonBuilder,
     ChannelSelectMenuBuilder, MessageCreateOptions, MessageEditOptions,
-    MessageActionRowComponentBuilder, ActionRowBuilder, StringSelectMenuBuilder, SelectMenuComponentOptionData, SelectMenuDefaultValueType, APISelectMenuDefaultValue, User, AttachmentBuilder
+    MessageActionRowComponentBuilder, ActionRowBuilder, StringSelectMenuBuilder, SelectMenuComponentOptionData, SelectMenuDefaultValueType, APISelectMenuDefaultValue, User, AttachmentBuilder, Interaction, ButtonInteraction, MessageComponentInteraction, ModalMessageModalSubmitInteraction
 } from 'discord.js';
 
 import { print, printD, printE, printL, format, dateToStr } from './consoleUtils';
@@ -570,15 +570,27 @@ export class SafeDiscord {
         }
     }
 
+    private static limitCheck(options: MessageEditOptions): MessageEditOptions {
+        if (options.content && options.content.length > 2000) {
+            options.files = [new AttachmentBuilder(Buffer.from(options.content, 'utf-8'), { name: 'message.txt' })];
+            options.content = '...';
+        }
+        return options;
+    }
+
+    static async interactionUpdate(interaction: Partial<MessageComponentInteraction | ModalMessageModalSubmitInteraction>, options: MessageEditOptions) {
+        return this.trycatch(
+            async () => {
+                return await interaction.update?.(this.limitCheck(options))
+            }
+        );
+
+    }
+
     static async messageEdit(message: Message, options: MessageEditOptions): Promise<Message | undefined> {
         return this.trycatch(
-
             async () => {
-                if (options.content && options.content.length > 2000) {
-                    options.files = [new AttachmentBuilder(Buffer.from(options.content, 'utf-8'), { name: 'message.txt' })];
-                    options.content = '...';
-                }
-                return await message.edit(options)
+                return await message.edit(this.limitCheck(options))
             }
         );
     }

@@ -232,9 +232,16 @@ import { myId } from './../botConfig.json';
 export async function interactionLog(username: string, commandName: string, options: string, userId: string) {
     await printL(
         username + format(
-            " /" + commandName + (userId == myId ? options.trim() : "")
+            " /" + commandName + (userId == myId ? " " + limiter(options.trim(), 20) : "")
             , { foreground: 'yellow' }
         ) + dateToStr(new Date(), "timeStamp"));
+
+    function limiter(input: string, limit: number): string {
+        if (input.length > limit) {
+            return input.slice(0, limit - 3) + '...';
+        }
+        return input;
+    }
 }
 
 export function shieldRegEx(str: string): string {
