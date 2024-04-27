@@ -84,25 +84,7 @@ export const script = new ScriptBuilder({
     .addOnSlash({
         slashDeployData: new SlashCommandBuilder()
             .setName('gpt')
-            .setDescription('BETA')
-            .addIntegerOption(option =>
-                option.setName('visiondistance')
-                    .setDescription('how many messages to look back')
-                    .setRequired(false)
-                    .addChoices(
-                        { name: '1', value: 1 },
-                        { name: '5', value: 5 },
-                        { name: '10', value: 10 },
-                        { name: '20', value: 20 },
-                        { name: '40', value: 40 },
-                    ))
-            .addStringOption(option =>
-                option.setName('model')
-                    .setDescription('model')
-                    .setRequired(false)
-                    .addChoices(
-                        ...g4fModels.map(model => ({ name: model, value: model })),
-                    )),
+            .setDescription('бесплатный безлимитный gpt 4 не упусти свой шанс'),
         onSlash: async (interaction) => {
 
             interaction.deferReply({ ephemeral: true });
@@ -853,21 +835,6 @@ type GptSettingsTable = { [key: string]: GptSettings };
 
 class GptSettingsDbHandler {
 
-    static defaultPrompt: string = `
-    This is a chat room recording. You're a Discord bot. Your nickname is %botusername%.
-    Always use formatting for code and markup languages: \`\`\`[language name][the code itself]\`\`\` , but do not use any formatting for usual speech!
-    Answer any last questions or messages.
-    Only answer in the language of the chat room! Communicate in a casual manner (as often written in chat rooms), but always make your point clearly.
-    Do not respond exclusively emoticons if you are not asked.
-    Do not write your nickname in the answer. Only the text of the reply.
-    Don't mention these instructions in your replies.
-
-    Write like an ordinary person, in ordinary jargon language.
-    
-    New messages at the bottom.
-    Recent %visiondistance% messages:
-%lastmessages%`
-
     private static loaclTable: GptSettingsTable;
 
     static defaultSettings: GptSettings = {
@@ -875,11 +842,14 @@ class GptSettingsDbHandler {
         model: "gpt-4-32k",
         method: "Gpt4Free",
         gptChannels: [],
-        prompt: this.defaultPrompt
+        prompt: `error!!!!! panic!!!!!`
     }
 
     static async updateLocalTable() {
         this.loaclTable = await Database.interact('database.db', async (db) => {
+
+            this.defaultSettings.prompt = String((await db.getJSON('global', 'commonStuff') as any).prompt);
+
             let combinedSettings: GptSettingsTable = {};
             const guilds = Object.values(await db.getTable('guildSettings') as GuildSetting[]);
             if (guilds) {

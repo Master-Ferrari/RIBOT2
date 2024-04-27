@@ -3,7 +3,7 @@ import {
     WebhookClient, GuildScheduledEvent, GuildTextChannelResolvable,
     EmbedBuilder, FetchMessagesOptions, ButtonStyle, ChannelType, ButtonBuilder,
     ChannelSelectMenuBuilder, MessageCreateOptions, MessageEditOptions,
-    MessageActionRowComponentBuilder, ActionRowBuilder, StringSelectMenuBuilder, SelectMenuComponentOptionData, SelectMenuDefaultValueType, APISelectMenuDefaultValue, User, AttachmentBuilder, Interaction, ButtonInteraction, MessageComponentInteraction, ModalMessageModalSubmitInteraction
+    MessageActionRowComponentBuilder, ActionRowBuilder, StringSelectMenuBuilder, SelectMenuComponentOptionData, SelectMenuDefaultValueType, APISelectMenuDefaultValue, User, AttachmentBuilder, Interaction, ButtonInteraction, MessageComponentInteraction, ModalMessageModalSubmitInteraction, Channel, ChatInputCommandInteraction
 } from 'discord.js';
 
 import { print, printD, printE, printL, format, dateToStr } from './consoleUtils';
@@ -594,6 +594,6 @@ export class SafeDiscord {
             }
         );
     }
-
+    
 }
 //#endregion

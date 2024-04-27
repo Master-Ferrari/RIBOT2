@@ -230,7 +230,16 @@ export async function loadScriptsFromDirectories(directoryPath: string = scripts
 
     return { serverList, scriptsList, intents, partials };
 }
-
+export async function updateScripts() {
+    const scriptsData = await loadScriptsFromDirectories();
+    await printL(format(`Update!`, { foreground: 'white', background: 'yellow', formatting: ['italic', 'bold'] }));
+    for (const script of scriptsData.scriptsList) {
+        if (script.isUpdate()) {
+            await script.onUpdate();
+            await printL(script.name + ' updated');
+        }
+    }
+}
 
 async function deployCommands(serverList: ServerConfig[], client: Client) {
 

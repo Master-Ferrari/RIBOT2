@@ -277,25 +277,3 @@ export class GptFactory {
         return true;
     }
 }
-
-
-
-
-// const gpt = GptFactory.create("Gpt4Free", {
-//     model: 'gpt-3.5-turbo'
-// }) as G4f;
-
-// gpt.requestChat([])
-
-// gpt.checkJson
-
-// gpt.requestStream([], 100, 1000, async (text: string) => {
-//     print(text);
-// })
-
-// const gpt2 = GptFactory.create("OpenAI", {
-//     // apiKey: 'sk-',
-//     tokens: 100,
-//     model: 'gpt-3.5-turbo',
-//     temperature: 0.7
-// });

@@ -3,7 +3,7 @@ import { print, printD, printE, printL, format, dateToStr } from '../../libs/con
 import { fetchLastNMessages, GuildSetting, fetchChannel, completeGuildSettings, ScriptScopes } from '../../libs/discordUtils';
 
 import Database from '../../libs/sqlite';
-import { loadScriptsFromDirectories } from '../../index';
+import { loadScriptsFromDirectories, updateScripts } from '../../index';
 
 import { ScriptBuilder } from '../../libs/scripts';
 
@@ -88,17 +88,6 @@ export const script = new ScriptBuilder({
             ephemeral: true
         });
 
-        const scriptsData = await loadScriptsFromDirectories();
-
-
-        await printL(format(`Update!`, { foreground: 'white', background: 'yellow', formatting: ['italic', 'bold'] }));
-
-        for (const script of scriptsData.scriptsList) {
-            if (script.isUpdate()) {
-                // const scriptScopes = { global: script.isGlobal, guilds: script.guilds.map(guild => guild.info.serverId) };
-                await script.onUpdate();
-                await printL(script.name + ' updated');
-            }
-        }
+        await updateScripts();
     }
 });
