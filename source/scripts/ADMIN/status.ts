@@ -30,10 +30,10 @@ export const script = new ScriptBuilder({
     onSlash: async (interaction) => {
         const options: any = interaction.options;
         const text = options.getString('text', true) as string;
-        const status = options.getString('status', true) as PresenceStatusData;
+        const status = options.getString('status', false) as PresenceStatusData | undefined;
 
         const client = script.client!;
-        client.user!.setPresence({ activities: [{ name: text }], status: status });
+        client.user!.setPresence({ activities: [{ name: text }], status });
         interaction.reply({ content: 'status set as ' + text + '', ephemeral: true });
 
     }

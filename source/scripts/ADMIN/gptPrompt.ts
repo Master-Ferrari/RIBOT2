@@ -34,7 +34,7 @@ export const script = new ScriptBuilder({
             .setCustomId("gptPromptModalGap")
             .setLabel("Use %pseudonyms%")
             .setStyle(TextInputStyle.Paragraph)
-            .setValue(table.prompt)
+            .setValue(table.prompt??"")
             .setRequired(true);
 
         const firstActionRow = new ActionRowBuilder().addComponents(hobbiesInput) as ActionRowBuilder<TextInputBuilder>;
