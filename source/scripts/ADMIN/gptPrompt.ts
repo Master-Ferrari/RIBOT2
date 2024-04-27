@@ -13,11 +13,11 @@ export const script = new ScriptBuilder({
     slashDeployData: new SlashCommandBuilder()
         .setName('gptprompt')
         .setDescription('global default gpt prompt')
-        // .addStringOption(option =>
-        //     option.setName('newprompt')
-        //         .setDescription('text')
-        //         .setRequired(true))
-                ,
+    // .addStringOption(option =>
+    //     option.setName('newprompt')
+    //         .setDescription('text')
+    //         .setRequired(true))
+    ,
     onSlash: async (interaction) => {
         const options: any = interaction.options;
 
@@ -54,8 +54,13 @@ export const script = new ScriptBuilder({
         const newprompt = interaction.components[0].components[0].value;
 
         const table = await Database.interact('database.db', async (db) => {
-            const json = await db.getJSON('global', 'commonStuff') as commonStuff;
-            json.prompt = newprompt;
+            let json: commonStuff | null = await db.getJSON('global', 'commonStuff') as commonStuff | null;
+
+            if (!json)
+                json = { prompt: newprompt };
+            else
+                json.prompt = newprompt;
+
             await db.setJSON('global', 'commonStuff', json);
         });
 
