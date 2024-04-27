@@ -5,7 +5,7 @@ import { print, printD, printL, format, dateToStr } from '../../libs/consoleUtil
 import { ScriptBuilder } from '../../libs/scripts';
 import Database from '../../libs/sqlite';
 import { loadScriptsFromDirectories, updateScripts } from '../../index';
-import { SafeDiscord } from '../../libs/discordUtils';
+import { SafeDiscord, commonStuff } from '../../libs/discordUtils';
 export const script = new ScriptBuilder({
     name: "gptprompt",
     group: "private",
@@ -23,7 +23,7 @@ export const script = new ScriptBuilder({
 
 
         const table = await Database.interact('database.db', async (db) => {
-            return await db.getJSON('global', 'commonStuff') as any;
+            return await db.getJSON('global', 'commonStuff') as commonStuff;
         });
 
         const modal = new ModalBuilder()
@@ -54,7 +54,7 @@ export const script = new ScriptBuilder({
         const newprompt = interaction.components[0].components[0].value;
 
         const table = await Database.interact('database.db', async (db) => {
-            const json = await db.getJSON('global', 'commonStuff') as any;
+            const json = await db.getJSON('global', 'commonStuff') as commonStuff;
             json.prompt = newprompt;
             await db.setJSON('global', 'commonStuff', json);
         });

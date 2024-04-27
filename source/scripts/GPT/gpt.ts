@@ -19,7 +19,7 @@ import {
     fetchChannel, sendWebhookMsg, editWebhookMsg, getSettings,
     updateReactions, ScriptScopes, ComponentParams, ComponentBuilder,
     ChannelSelectParams, ButtonParams, buildMessage, buildComponents,
-    SafeDiscord, StringSelectParams, GptSettings, UserSetting, GptSettingsTableType
+    SafeDiscord, StringSelectParams, GptSettings, UserSetting, GptSettingsTableType, commonStuff
 } from '../../libs/discordUtils';
 
 import { G4f, G4fModels, GptFactory, History, Method, Openai, allModels, g4fModels } from '../../libs/gptHandler';
@@ -848,8 +848,12 @@ class GptSettingsDbHandler {
     static async updateLocalTable() {
         this.loaclTable = await Database.interact('database.db', async (db) => {
 
-            this.defaultSettings.prompt = String((await db.getJSON('global', 'commonStuff') as any).prompt);
-
+            try {
+                this.defaultSettings.prompt = String((await db.getJSON('global', 'commonStuff') as commonStuff).prompt);
+            }catch{
+                this.defaultSettings.prompt = `error!!!!! panic!!!!!`;
+            }
+            
             let combinedSettings: GptSettingsTable = {};
             const guilds = Object.values(await db.getTable('guildSettings') as GuildSetting[]);
             if (guilds) {

@@ -90,6 +90,10 @@ export type ComponentRow = ComponentParams[];
 export type ComponentsData = ComponentRow[];
 
 export type ComponentBuilder = (ButtonBuilder | ChannelSelectMenuBuilder | StringSelectMenuBuilder);
+
+export type commonStuff = {
+    prompt: string
+}
 //#endregion
 
 //#region database
@@ -594,6 +598,6 @@ export class SafeDiscord {
             }
         );
     }
-    
+
 }
 //#endregion
