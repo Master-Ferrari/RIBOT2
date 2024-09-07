@@ -161,8 +161,8 @@ class ScheduleResponder {
 
     async makeText(date: CustomDate): Promise<string> {
 
-        const scheduleData = await pasteBin.fetchSchedule(
-        const dayData = scheduleData[date.toString()]
+        const scheduleData = await pasteBin.fetchSchedule()
+        const dayData = scheduleData[date.toString()];
         if (!dayData) {
             return "No data";
         }
@@ -197,6 +197,7 @@ class ScheduleResponder {
 
         const week = date.getWeek();
         // let dayIterator: CustomDate = week[0];
+        printD({ "AAA": date.toString() })
 
         const daysButtons = week.map(day => {
 
