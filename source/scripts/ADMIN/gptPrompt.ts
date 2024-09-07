@@ -30,14 +30,14 @@ export const script = new ScriptBuilder({
             .setCustomId("gptPromptModal")
             .setTitle('This is your GPT request');
 
-        const hobbiesInput = new TextInputBuilder()
+        const promptInput = new TextInputBuilder()
             .setCustomId("gptPromptModalGap")
             .setLabel("Use %pseudonyms%")
             .setStyle(TextInputStyle.Paragraph)
             .setValue(table?.prompt ?? "")
             .setRequired(true);
 
-        const firstActionRow = new ActionRowBuilder().addComponents(hobbiesInput) as ActionRowBuilder<TextInputBuilder>;
+        const firstActionRow = new ActionRowBuilder().addComponents(promptInput) as ActionRowBuilder<TextInputBuilder>;
         modal.addComponents(firstActionRow);
 
         await interaction.showModal(modal);

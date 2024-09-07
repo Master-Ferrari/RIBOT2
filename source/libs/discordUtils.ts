@@ -25,6 +25,7 @@ export type GptSettings = {
     gptChannels: string[];
     prompt: string;
     apikey?: string;
+    webhook?: string;
 }
 
 export type GuildSetting = {
@@ -597,6 +598,15 @@ export class SafeDiscord {
                 return await message.edit(this.limitCheck(options))
             }
         );
+    }
+
+
+    static async do(stuff: () => Promise<any>): Promise<any> {
+        return this.trycatch(
+            async () => {
+                return await stuff();
+            }
+        )
     }
 
 }

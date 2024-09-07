@@ -2,7 +2,9 @@ import {
     AttachmentBuilder, Client, Message, ActionRowBuilder,
     TextChannel, ButtonComponent, ComponentType, Events, User,
     PartialUser, PartialMessageReaction, MessageReaction, ChannelType,
-    StringSelectMenuBuilder, ChannelSelectMenuBuilder, Emoji, ModalBuilder, TextInputBuilder, TextInputStyle
+    StringSelectMenuBuilder, ChannelSelectMenuBuilder, Emoji, ModalBuilder, TextInputBuilder, TextInputStyle,
+    AnyThreadChannel,
+    ThreadChannel
 } from 'discord.js';
 import {
     ButtonBuilder, ButtonStyle, SlashCommandBuilder,
@@ -27,6 +29,7 @@ import Database from '../../libs/sqlite';
 import { TTSFactory } from '../../libs/tts';
 import { ScriptBuilder } from '../../libs/scripts';
 import axios from 'axios';
+import { channel } from 'diagnostics_channel';
 
 const defaultVisionDistance = 15;
 
@@ -44,7 +47,12 @@ const compNames = {
     reset: "GptReset",
     api: "GptApi",
     apiGap: "GptApiGap",
-    apiModal: "GptApiModal"
+    apiModal: "GptApiModal",
+    thread: "GptThread",
+    webhook: "GptWebhook",
+    webhookGap: "GptWebhookGap",
+    webhookModal: "GptWebhookModal",
+    info: "GptInfo",
 };
 const reactionNames = {
     regenerate: { full: "<:regenerate:1196122410626330624>", name: "regenerate" },
@@ -57,7 +65,9 @@ const reactionNames = {
     open: { full: "<:peace:1208860404189757441>", name: "peace" },
     close: { full: "<:peace:1208860404189757441>", name: "peace" },
     empty: { full: "<:empty:1228541126441435146>", name: "empty" },
-    lips: { full: "<:lips:1228724931576205483>", name: "lips" }
+    lips: { full: "<:lips:1228724931576205483>", name: "lips" },
+    thread: { full: "<:thread:1234282204931293256>", name: "thread" },
+    settings: { full: "<:settings:1234279706338005165>", name: "settings" },
 }
 
 type msgFiles = { url: string, name: string }[];
@@ -73,6 +83,13 @@ type GptMessageData = {
     currentIndex: number,
     deleted: boolean
 };
+
+type GptThreadData = {
+    name: string,
+    rootMessageId: string,
+    startMessageId?: string,
+    contextLenght?: number
+}
 
 
 type Index = [string | number, string | number];
@@ -210,14 +227,14 @@ export const script = new ScriptBuilder({
                     .setCustomId(compNames.promptModal)
                     .setTitle('This is your GPT request');
 
-                const hobbiesInput = new TextInputBuilder()
+                const promptInput = new TextInputBuilder()
                     .setCustomId(compNames.promptGap)
                     .setLabel("Use %pseudonyms%")
                     .setStyle(TextInputStyle.Paragraph)
                     .setValue(gptSettings.prompt)
                     .setRequired(true);
 
-                const firstActionRow = new ActionRowBuilder().addComponents(hobbiesInput) as ActionRowBuilder<TextInputBuilder>;
+                const firstActionRow = new ActionRowBuilder().addComponents(promptInput) as ActionRowBuilder<TextInputBuilder>;
                 modal.addComponents(firstActionRow);
 
                 await interaction.showModal(modal);
@@ -238,16 +255,97 @@ export const script = new ScriptBuilder({
                     .setCustomId(compNames.apiModal)
                     .setTitle('Enter your api key');
 
-                const hobbiesInput = new TextInputBuilder()
+                const Input = new TextInputBuilder()
                     .setCustomId(compNames.apiGap)
                     .setLabel("visit https://platform.openai.com/api-keys")
                     .setStyle(TextInputStyle.Short)
                     .setRequired(false);
 
-                const firstActionRow = new ActionRowBuilder().addComponents(hobbiesInput) as ActionRowBuilder<TextInputBuilder>;
+                const firstActionRow = new ActionRowBuilder().addComponents(Input) as ActionRowBuilder<TextInputBuilder>;
                 modal.addComponents(firstActionRow);
 
                 await interaction.showModal(modal);
+
+
+            } else if (interaction.customId === compNames.webhook) {
+
+                data = await GptMessagesDbHandler.load(data.messageId);
+                if (data!.deleted) return;
+
+                const modal = new ModalBuilder()
+                    .setCustomId(compNames.webhookModal)
+                    .setTitle('Enter webhook url');
+
+                const Input = new TextInputBuilder()
+                    .setCustomId(compNames.webhookGap)
+                    .setLabel("server settings / integrations / webhooks")
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(false);
+
+                const firstActionRow = new ActionRowBuilder().addComponents(Input) as ActionRowBuilder<TextInputBuilder>;
+                modal.addComponents(firstActionRow);
+
+                await interaction.showModal(modal);
+
+
+            } else if (interaction.customId === compNames.thread) {
+                const defaultName = "GPT";
+
+                // check webhook or ask for it
+
+                // check for db record или нет
+
+                // delete all messages in thread before creation completed
+
+                // create db record
+                const record: GptThreadData = {
+                    name: defaultName,
+                    rootMessageId: data.messageId,
+                    startMessageId: data.messageId,
+                    contextLenght: 0
+                }
+
+                Database.interact('database.db', async (db) => {
+                    db.setJSON('global', 'gptThreads', record);
+                })  
+
+                //create new thread by channel
+                const thread = await (interaction.message.channel as TextChannel).threads.create({ name: defaultName });
+
+                //hide thread
+                await thread.setArchived(true);
+
+                // interaction update
+                const threadLink = "https://discord.com/channels/" + interaction.guildId + "/" + thread.id;
+                await SafeDiscord.messageEdit(interaction.message,
+                    {
+                        ...Responder.buildDoneMessage(data, gptSettings),
+                        embeds: [{ description: "Continuation of the dialogue: " + threadLink }]
+                    } as MessageEditOptions);
+
+                //send start message asking count of last context messages
+                // thread.send({ content: "Please provide the number of recent messages that should be in the context of the bot.", components: buildComponents() });
+
+                //get last messages
+
+                //ask gpt thread name
+
+                //fill thread by webhook
+
+                //ans as usial 
+
+                /////////maybe create class about crating gpt threads becouse i want to make slash gptthread command
+
+
+                // interaction.message.startThread({ name: "GPT" });
+
+                await SafeDiscord.messageEdit(interaction.message, { ...Responder.buildDoneMessage(data, gptSettings) } as MessageEditOptions);
+
+                //clear system message about thread creation
+                const sysMessages = (await interaction.message.channel.messages.fetch({ limit: 5 })).find(m => m.system && m.content.includes(defaultName));
+                sysMessages?.delete();
+
+
 
             }
         }
@@ -327,6 +425,10 @@ export const script = new ScriptBuilder({
 
                 gptSettings = await GptSettingsDbHandler.set(id, tableType, interaction.client, { apikey: interaction.components[0].components[0].value });
 
+            } else if (interaction.customId == compNames.webhookModal) {
+
+                gptSettings = await GptSettingsDbHandler.set(id, tableType, interaction.client, { webhook: interaction.components[0].components[0].value });
+
             } else { gptSettings = GptSettingsDbHandler.defaultSettings }
 
             const data = await GptMessagesDbHandler.load(interaction.message.id);
@@ -339,12 +441,17 @@ export const script = new ScriptBuilder({
         },
         onMessage: async (userMessage) => {
 
-            if (!userMessage.channel.isDMBased() && userMessage.guildId) {
+            if (!userMessage.channel.isDMBased() && userMessage.guildId) { // do not filter if is not dm
+
+                const channelId = (userMessage.channel.isThread() ? userMessage.channel.parent!.id : userMessage.channel.id); // replace thread to its parent
+
                 const allowedChannel = GptSettingsDbHandler.get(userMessage.guildId)?.gptChannels.find((channel) => {
-                    if (userMessage.channelId === channel) return true
-                })
-                if (!allowedChannel) return
+                    if (channelId === channel) return true // not undefined if is in allowed channels from guild settings
+                });
+
+                if (!allowedChannel) return // reject if is not in allowed channels
             }
+
 
             interactionLog(userMessage.author.tag, "gpt", userMessage.content, userMessage.author.id);
 
@@ -439,8 +546,8 @@ class Responder {
             customId: compNames.open,
             style: ButtonStyle.Secondary,
             disabled: false,
-            emoji: reactionNames.open.full,
-            label: "settings",
+            emoji: reactionNames.settings.full,
+            label: undefined,
         } as ButtonParams,
         close: {
             type: 2,
@@ -493,21 +600,29 @@ class Responder {
                 label: undefined,
             };
         },
+        thread: {
+            type: 2,
+            customId: compNames.thread,
+            style: ButtonStyle.Secondary,
+            disabled: false,
+            emoji: reactionNames.thread.full,
+            label: undefined,
+        } as ButtonParams,
         prompt: {
             type: 2,
             customId: compNames.prompt,
             style: ButtonStyle.Secondary,
             disabled: false,
             emoji: undefined,
-            label: "base prompt",
+            label: "edit base prompt",
         } as ButtonParams,
         reset: {
             type: 2,
             customId: compNames.reset,
             style: ButtonStyle.Secondary,
             disabled: false,
-            emoji: undefined,
-            label: "reset",
+            emoji: reactionNames.cancel.full,
+            label: "reset all",
         } as ButtonParams,
         api: {
             type: 2,
@@ -517,21 +632,61 @@ class Responder {
             emoji: undefined,
             label: "enter api key",
         } as ButtonParams,
+        webhook: {
+            type: 2,
+            customId: compNames.webhook,
+            style: ButtonStyle.Secondary,
+            disabled: false,
+            emoji: reactionNames.thread.full,
+            label: "enter webhook",
+        } as ButtonParams,
+        info: {
+            type: 2,
+            customId: compNames.info,
+            style: ButtonStyle.Secondary,
+            disabled: true,
+            emoji: reactionNames.lips.full,
+            label: "info",
+        } as ButtonParams,
     };
+
     private static buildDefaultBtns(index: Index, gptSettings: GptSettings): ButtonParams[][] {
-        const btnsInfo: ButtonParams[][] = [
-            [this.compInfo.cancel, this.compInfo.say(gptSettings), this.compInfo.regenerate, this.compInfo.open]
-        ];
-        if (Number(index[1]) > 1) {
-            const indexbutton = this.compInfo.index(index);
-            btnsInfo.push([this.compInfo.left, indexbutton, this.compInfo.right]);
-        }
+        const btnsInfo: ButtonParams[][] = [];
+
+        btnsInfo.push([
+            this.compInfo.cancel,
+            this.compInfo.regenerate,
+            gptSettings.type == "guildSettings" ? this.compInfo.thread : null,
+            gptSettings.type == "userSettings" ? this.compInfo.say(gptSettings) : null,
+            this.compInfo.open,
+            gptSettings.type == "guildSettings" && index[1] == 1 ? this.compInfo.say(gptSettings) : null,
+        ].filter((e) => e != null) as ButtonParams[]);
+
+        if (Number(index[1]) > 1)
+            btnsInfo.push([
+                this.compInfo.left,
+                this.compInfo.index(index),
+                this.compInfo.right,
+                gptSettings.type == "guildSettings" ? this.compInfo.say(gptSettings) : null,
+            ].filter((e) => e != null) as ButtonParams[]);
+
         return btnsInfo;
     }
 
     private static buildAdditionalBtns(gptSettings: GptSettings): ComponentParams[][] {
         const compsInfo: ComponentParams[][] = [];
-        compsInfo.push([this.compInfo.close, this.compInfo.prompt, this.compInfo.reset, this.compInfo.api]);
+
+        compsInfo.push([
+            this.compInfo.close,
+            this.compInfo.reset,
+            this.compInfo.info,
+        ]);
+        compsInfo.push([
+            this.compInfo.prompt,
+            this.compInfo.api,
+            gptSettings.type == "guildSettings" ? this.compInfo.webhook : null,
+        ].filter((e) => e != null) as ComponentParams[]);
+
         if (gptSettings.type == "guildSettings") {
             compsInfo.push([this.compInfo.gptChannel(gptSettings)]);
         }
@@ -602,6 +757,13 @@ class Responder {
         const btns = buildComponents(btnsInfo);
         return buildMessage({ content: data.answers[data.currentIndex].content, files }, btns);
     }
+
+    // public static buildNewThreadMessage(gptSettings: GptSettings): MessageCreateOptions | MessageEditOptions {
+    //     const btnsInfo: ComponentParams[][] = this.buildAdditionalBtns(gptSettings);
+    //     const btns = buildComponents(btnsInfo);
+    //     return buildMessage({ content: data.answers[data.currentIndex].content, files }, btns);
+    // }
+
     // #endregion
 
 }
@@ -850,10 +1012,10 @@ class GptSettingsDbHandler {
 
             try {
                 this.defaultSettings.prompt = String((await db.getJSON('global', 'commonStuff') as commonStuff).prompt);
-            }catch{
+            } catch {
                 this.defaultSettings.prompt = `error!!!!! panic!!!!!`;
             }
-            
+
             let combinedSettings: GptSettingsTable = {};
             const guilds = Object.values(await db.getTable('guildSettings') as GuildSetting[]);
             if (guilds) {
