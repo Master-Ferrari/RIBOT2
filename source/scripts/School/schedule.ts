@@ -33,7 +33,6 @@ export const script = new ScriptBuilder({
             });
 
             const msg = await reply.fetch();
-            printD({ REPLYID: msg.id });
 
             ScheduleMessagesDbHandler.set(msg.id, { messageId: reply.id, monday: monday.toString(), selectedDay: today.toString() });
         }
@@ -50,7 +49,7 @@ export const script = new ScriptBuilder({
 
             const data = await ScheduleMessagesDbHandler.load(interaction.message.id);
             if (!data) {
-                printE("No data");
+                printE("SCHEDULE: No data " + interaction.message.id);
                 return;
             }
 
@@ -149,7 +148,6 @@ class PasteBin {
         try {
             const response = await axios.get(this.url, { timeout: 15000 });
             const schedule: ScheduleJson = response.data;
-            printD({ schedule: response.data });
             return schedule;
         } catch (error) {
             console.error('Ошибка при получении или десериализации расписания:', error);
@@ -163,10 +161,8 @@ class ScheduleResponder {
 
     async makeText(date: CustomDate): Promise<string> {
 
-        const scheduleData = await pasteBin.fetchSchedule();
-        printD({ "day": date.toString() });
-        const dayData = scheduleData[date.toString()];
-        printD({ "dayData": dayData })
+        const scheduleData = await pasteBin.fetchSchedule(
+        const dayData = scheduleData[date.toString()]
         if (!dayData) {
             return "No data";
         }
@@ -201,7 +197,6 @@ class ScheduleResponder {
 
         const week = date.getWeek();
         // let dayIterator: CustomDate = week[0];
-        printD({ "AAA": date.toString() })
 
         const daysButtons = week.map(day => {
 
