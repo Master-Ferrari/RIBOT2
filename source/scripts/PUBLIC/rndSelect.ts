@@ -26,7 +26,7 @@ export const script = new ScriptBuilder({
             const options = interaction.options;
             const first = options.getString("text1", true);
 
-            const list: string[] = [first];
+            const list: string[] = [];
             for (let i = 1; i < 10; i++) {
                 const option = options.getString(`text${i}`);
                 if (option) {
