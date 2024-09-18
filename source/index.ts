@@ -213,7 +213,7 @@ export async function loadScriptsFromDirectories(directoryPath: string = scripts
 
 
     // Linking scripts to guilds
-    for (const server of serverList) {
+    for (const server of serverList) {      
         for (const script of scriptsList) {
             if (script.guilds! !== "global" && script.guilds!.find(guild => guild.serverId === server.serverId) ||
                 server.serverName === "global" && script.isGlobal) {
