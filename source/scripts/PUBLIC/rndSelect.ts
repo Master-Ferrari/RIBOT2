@@ -43,8 +43,8 @@ export const script = new ScriptBuilder({
             await interaction.reply({
                 content:
                     list.map((item, index) => {
-                        if (index == random) return `${index + 1}. **${item}**`
-                        return `${index + 1}. ${item}`
+                        if (index == random) return `${index + 1}. **\`>> ${item} <<\`**`
+                        return `${index + 1}. \`   ${item}\``
                     }).join('\n'),
                 ephemeral: false
             });
