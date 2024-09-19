@@ -36,7 +36,7 @@ export const script = new ScriptBuilder({
                     maxLenght = maxLenght > option.length ? maxLenght : option.length;
                 }
             }
-            maxLenght += 6;
+            // maxLenght += 6;
 
             maxLenght = maxLenght > 20 ? 20 : maxLenght;
 
@@ -69,6 +69,7 @@ export const script = new ScriptBuilder({
 
 
                         function makeSpaces(number: number): string {
+                            number = number < 0 ? 0 : number;
                             return " ".repeat(number)
                         }
                     }).join('\n'),
