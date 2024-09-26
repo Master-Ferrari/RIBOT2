@@ -3,7 +3,9 @@ import { print, printD, printL, format, dateToStr, printE } from '../../libs/con
 import { ScriptBuilder } from '../../libs/scripts';
 import { buildComponents, buildMessage, ButtonParams, ComponentParams, Fetcher, SafeDiscord } from '../../libs/discordUtils';
 import Database from '../../libs/sqlite';
-import axios from 'axios';
+import { PasteBin } from '../../libs/pastebin';
+
+import { myId } from './../../botConfig.json';
 
 export const script = new ScriptBuilder({
     name: "schedule",
@@ -15,6 +17,7 @@ export const script = new ScriptBuilder({
             .setDescription('its scheduling'),
         onSlash: async (interaction) => {
 
+            const itIsMe = interaction.user.id == myId;
             const creator = new ScheduleResponder();
 
             const today = CustomDate.today();
@@ -22,11 +25,14 @@ export const script = new ScriptBuilder({
 
             const buttonsInfo = await creator.makeBtns(today);
             const buttons = buildComponents(buttonsInfo);
-            const msgInfo = buildMessage({ content: await creator.makeText(today) }, buttons);
+
+            const textPromise = creator.makeText(today, itIsMe);
 
             const reply = await SafeDiscord.do(async () => {
                 return await interaction.deferReply({ ephemeral: false });
             }) as InteractionResponse;
+
+            const msgInfo = buildMessage({ content: await textPromise }, buttons);
 
             SafeDiscord.do(async () => {
                 await reply.edit(msgInfo);
@@ -37,55 +43,55 @@ export const script = new ScriptBuilder({
             ScheduleMessagesDbHandler.set(msg.id, { messageId: reply.id, monday: monday.toString(), selectedDay: today.toString() });
         }
     }
-)
-    .addOnButton({
-        isValidButtonCustomId: async (customId: string) => {
-            return customId.startsWith("schedule_");
-        },
+).addOnButton({
+    isValidButtonCustomId: async (customId: string) => {
+        return customId.startsWith("schedule_");
+    },
 
-        onButton: async (interaction) => {
+    onButton: async (interaction) => {
 
-            const creator = new ScheduleResponder();
+        const creator = new ScheduleResponder();
+        const itIsMe = interaction.user.id == myId;
 
-            const data = await ScheduleMessagesDbHandler.load(interaction.message.id);
-            if (!data) {
-                printE("SCHEDULE: No data " + interaction.message.id);
-                return;
-            }
-
-            const selected: CustomDate = CustomDate.fromString(data.selectedDay);
-            const monday: CustomDate = CustomDate.fromString(data.monday);
-
-            if (interaction.customId == "schedule_left") {
-                selected.shift(-7);
-                monday.shift(-7);
-            }
-            else if (interaction.customId == "schedule_right") {
-                selected.shift(7);
-                monday.shift(7);
-            }
-            else if (interaction.customId.startsWith("schedule_")) {
-                selected.setDayOfWeek(Number(interaction.customId.replace("schedule_", "")));
-            }
-
-            const newData: ScheduleMessageData = {
-                messageId: data.messageId,
-                monday: monday.toString(),
-                selectedDay: selected.toString(),
-            };
-
-            await ScheduleMessagesDbHandler.edit(interaction.message.id, newData as ScheduleMessageData);
-
-            const buttonsInfo = await creator.makeBtns(CustomDate.fromString(newData.selectedDay));
-            const buttons = buildComponents(buttonsInfo);
-            const msgInfo = buildMessage(
-                {
-                    content: await creator.makeText(CustomDate.fromString(newData.selectedDay)),
-                }, buttons
-            );
-            interaction.update(msgInfo as InteractionUpdateOptions);
+        const data = await ScheduleMessagesDbHandler.load(interaction.message.id);
+        if (!data) {
+            printE("SCHEDULE: No data " + interaction.message.id);
+            return;
         }
-    })
+
+        const selected: CustomDate = CustomDate.fromString(data.selectedDay);
+        const monday: CustomDate = CustomDate.fromString(data.monday);
+
+        if (interaction.customId == "schedule_left") {
+            selected.shift(-7);
+            monday.shift(-7);
+        }
+        else if (interaction.customId == "schedule_right") {
+            selected.shift(7);
+            monday.shift(7);
+        }
+        else if (interaction.customId.startsWith("schedule_")) {
+            selected.setDayOfWeek(Number(interaction.customId.replace("schedule_", "")));
+        }
+
+        const newData: ScheduleMessageData = {
+            messageId: data.messageId,
+            monday: monday.toString(),
+            selectedDay: selected.toString(),
+        };
+
+        await ScheduleMessagesDbHandler.edit(interaction.message.id, newData as ScheduleMessageData);
+
+        const buttonsInfo = await creator.makeBtns(CustomDate.fromString(newData.selectedDay));
+        const buttons = buildComponents(buttonsInfo);
+        const msgInfo = buildMessage(
+            {
+                content: await creator.makeText(CustomDate.fromString(newData.selectedDay), itIsMe),
+            }, buttons
+        );
+        interaction.update(msgInfo as InteractionUpdateOptions);
+    }
+})
 
 type para = 1 | 2 | 3 | 4 | 5 | 6;
 type ScheduleDayJson = {
@@ -96,6 +102,17 @@ type ScheduleDayJson = {
     time: para | para[] | string,
     subgroup: 1 | 2 | "both"
 }
+
+type AdditionalScheduleDayJson = {
+    name: string,
+    time: string,
+    place: string
+};
+
+type AdditionalScheduleJson = {
+    [date: string]: AdditionalScheduleDayJson[]
+};
+
 const timeSlots: { [key in para]: string } = {
     1: "8:00 - 9:30",
     2: "9:40 - 11:10",
@@ -136,41 +153,36 @@ function formatTime(time: para | para[] | string): string {
     return mergedTimes.join(", ");
 }
 
-
-class PasteBin {
-    private url: string;
-
-    constructor(url: string) {
-        this.url = url;
-    }
-
-    async fetchSchedule(): Promise<ScheduleJson> {
-        try {
-            const response = await axios.get(this.url, { timeout: 15000 });
-            const schedule: ScheduleJson = response.data;
-            return schedule;
-        } catch (error) {
-            console.error('Ошибка при получении или десериализации расписания:', error);
-            throw error;
-        }
-    }
-}
-const pasteBin = new PasteBin('https://pastebin.com/raw/CWG1sn1i');
+const pasteBinMain = new PasteBin('https://pastebin.com/raw/CWG1sn1i');
+const pasteBinAdditional = new PasteBin('https://pastebin.com/raw/u1aP9P2R');
 
 class ScheduleResponder {
 
-    async makeText(date: CustomDate): Promise<string> {
+    async makeText(date: CustomDate, itIsMe: boolean): Promise<string> {
 
-        const scheduleData = await pasteBin.fetchSchedule()
+        const scheduleData = await pasteBinMain.fetch<ScheduleJson>();
         const dayData = scheduleData[date.toString()];
         if (!dayData) {
             return "No data";
         }
-        const out = "### " + date.toString() + "\n" +
+        let out = "### " + date.toString() + "\n" +
             dayData.map(event => {
-                return "- **" + event.lesson + "**" + (event.subgroup === "both" ? " `обе подгруппы`" : " `подгруппа " + event.subgroup + "`") + "\n" +
-                    "> `" + formatTime(event.time) + "` " + event.teacher.toUpperCase() + " __*" + event.type + "*__ **" + event.room + "**\n";
+                return "- **" + event.lesson + "**" + (event.subgroup === "both" ? " `обе подгруппы`" : " `подгруппа " + event.subgroup + "`") + "\n"
+                    + "> `" + formatTime(event.time) + "` " + event.teacher.toUpperCase() + " __*" + event.type + "*__ **" + event.room + "**\n";
             }).join("");
+
+        if (itIsMe) {
+            const dayData = (await pasteBinAdditional.fetch<AdditionalScheduleJson>())[date.toString()];
+            if (!dayData) {
+                return out;
+            }
+            out += "## --- --- --- --- --- ---\n"
+            // printD({ dayData })
+            out += dayData.map(event => {
+                return "- **" + event.name + "**\n"
+                    + "> `" + event.time + "` **" + event.place + "**\n";
+            }).join("");
+        }
 
         return out;
     }
