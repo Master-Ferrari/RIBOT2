@@ -236,9 +236,10 @@ class ScheduleResponder {
                 const time = this.getFirstTime(dayData, additionalData);
 
                 if (time) {
-                    out += "# НАЧАЛО\n"
+                    out += "# ПРИВЕТ)\n"
                     out += "> `" + time.shift("-1:30").toString() + "` просыпаемся (Волжский)\n";
-                    out += "> `" + time.shift("0:45").toString() + "` заканчиваем чо делали\n";
+                    out += "> `" + time.shift("0:30").toString() + "` заканчиваем чо делали\n";
+                    out += "> `" + time.shift("0:15").toString() + "` собираемсяяя\n";
                     out += "> `" + time.shift("0:15").toString() + "` выходим\n";
                     out += "> `" + time.shift("0:30").toString() + "` начало занятий\n";
                 }
