@@ -1,11 +1,14 @@
 import { CommandInteraction, SlashCommandBuilder, Client, TextChannel, ActionRowData, MessageActionRowComponentBuilder, ButtonStyle, MessageEditOptions, InteractionResponse, InteractionUpdateOptions } from 'discord.js';
 import { print, printD, printL, format, dateToStr, printE } from '../../libs/consoleUtils';
 import { ScriptBuilder } from '../../libs/scripts';
-import { buildComponents, buildMessage, ButtonParams, ComponentParams, Fetcher, SafeDiscord } from '../../libs/discordUtils';
+import { buildComponents, buildMessage, ButtonParams, ComponentParams, Fetcher, SafeDiscord, StringSelectParams } from '../../libs/discordUtils';
 import Database from '../../libs/sqlite';
 import { PasteBin } from '../../libs/pastebin';
 
 import { myId } from './../../botConfig.json';
+import { CustomDate } from './customDate';
+import { AdditionalScheduleDayJson, AdditionalScheduleJson, para, ScheduleDayJson, subgroup, timeSlots } from './types';
+import { CustomTime } from './customTime';
 
 export const script = new ScriptBuilder({
     name: "schedule",
@@ -23,10 +26,10 @@ export const script = new ScriptBuilder({
             const today = CustomDate.today();
             const monday = today.getWeek()[0];
 
-            const buttonsInfo = await creator.makeBtns(today);
+            const buttonsInfo = await creator.makeBtns(today, "both");
             const buttons = buildComponents(buttonsInfo);
 
-            const textPromise = creator.makeText(today, itIsMe);
+            const textPromise = creator.makeText(today, itIsMe, "both");
 
             const reply = await SafeDiscord.do(async () => {
                 return await interaction.deferReply({ ephemeral: false });
@@ -40,7 +43,7 @@ export const script = new ScriptBuilder({
 
             const msg = await reply.fetch();
 
-            ScheduleMessagesDbHandler.set(msg.id, { messageId: reply.id, monday: monday.toString(), selectedDay: today.toString() });
+            ScheduleMessagesDbHandler.set(msg.id, { messageId: reply.id, monday: monday.toString(), selectedDay: today.toString(), selectedGroup: "both" });
         }
     }
 ).addOnButton({
@@ -78,49 +81,67 @@ export const script = new ScriptBuilder({
             messageId: data.messageId,
             monday: monday.toString(),
             selectedDay: selected.toString(),
+            selectedGroup: data.selectedGroup
         };
 
         await ScheduleMessagesDbHandler.edit(interaction.message.id, newData as ScheduleMessageData);
 
-        const buttonsInfo = await creator.makeBtns(CustomDate.fromString(newData.selectedDay));
+        const buttonsInfo = await creator.makeBtns(CustomDate.fromString(newData.selectedDay), newData.selectedGroup);
         const buttons = buildComponents(buttonsInfo);
         const msgInfo = buildMessage(
             {
-                content: await creator.makeText(CustomDate.fromString(newData.selectedDay), itIsMe),
+                content: await creator.makeText(CustomDate.fromString(newData.selectedDay), itIsMe, newData.selectedGroup),
             }, buttons
         );
         interaction.update(msgInfo as InteractionUpdateOptions);
     }
+}).addOnSelectMenu({
+    isValidSelectMenuCustomId: async (customId: string) => {
+        return customId.startsWith("schedule_");
+    },
+
+    onSelectMenu: async (interaction) => {
+        if (interaction.customId == "schedule_group") {
+
+            const creator = new ScheduleResponder();
+            const itIsMe = interaction.user.id == myId;
+
+            const data = await ScheduleMessagesDbHandler.load(interaction.message.id);
+            if (!data) {
+                printE("SCHEDULE: No data " + interaction.message.id);
+                return;
+            }
+
+            function toGroup(value: string): subgroup {
+                switch (value) {
+                    case "1":
+                        return 1;
+                    case "2":
+                        return 2;
+                    default:
+                        return "both";
+                }
+            }
+
+            const newData: ScheduleMessageData = {
+                ...data,
+                selectedGroup: toGroup(interaction.values[0])
+            };
+
+            await ScheduleMessagesDbHandler.edit(interaction.message.id, newData as ScheduleMessageData);
+
+            const buttonsInfo = await creator.makeBtns(CustomDate.fromString(newData.selectedDay), newData.selectedGroup);
+            const buttons = buildComponents(buttonsInfo);
+            const msgInfo = buildMessage(
+                {
+                    content: await creator.makeText(CustomDate.fromString(newData.selectedDay), itIsMe, newData.selectedGroup),
+                }, buttons
+            );
+            interaction.update(msgInfo as InteractionUpdateOptions);
+
+        }
+    }
 })
-
-type para = 1 | 2 | 3 | 4 | 5 | 6;
-type ScheduleDayJson = {
-    lesson: string,
-    teacher: string,
-    room: string,
-    type: string,
-    time: para | para[] | string,
-    subgroup: 1 | 2 | "both"
-}
-
-type AdditionalScheduleDayJson = {
-    name: string,
-    time: string,
-    place: string
-};
-
-type AdditionalScheduleJson = {
-    [date: string]: AdditionalScheduleDayJson[]
-};
-
-const timeSlots: { [key in para]: string } = {
-    1: "8:00 - 9:30",
-    2: "9:40 - 11:10",
-    3: "11:20 - 12:50",
-    4: "13:10 - 14:40",
-    5: "14:50 - 16:20",
-    6: "16:25 - 17:55"
-};
 
 type ScheduleJson = {
     [date: string]: ScheduleDayJson[]
@@ -158,36 +179,125 @@ const pasteBinAdditional = new PasteBin('https://pastebin.com/raw/u1aP9P2R');
 
 class ScheduleResponder {
 
-    async makeText(date: CustomDate, itIsMe: boolean): Promise<string> {
+    filterGroups(dayData: ScheduleDayJson[], group: subgroup): ScheduleDayJson[] | null {
+        if (!dayData || dayData.length == 0) {
+            return null;
+        }
+        const out = dayData.filter(x => x.subgroup == group || x.subgroup == "both" || group == "both");
+        if (out.length == 0) {
+            return null;
+        }
+        return out;
+    }
+
+    getFirstTime(dayData?: ScheduleDayJson[] | null, additionalData?: AdditionalScheduleDayJson[] | null): CustomTime | null {
+
+        let outTime: CustomTime | null = null;
+
+        if (dayData && dayData.length > 0) {
+            outTime = CustomTime.fromString(dayData[0].time);
+        }
+
+        if (additionalData && additionalData.length > 0) {
+            const additionalTime = CustomTime.fromString(additionalData[0].time);
+            if (outTime) {
+                outTime.getMin(additionalTime);
+            } else {
+                outTime = additionalTime;
+            }
+        }
+
+        return outTime;
+    }
+
+
+    async makeText(date: CustomDate, itIsMe: boolean, subgroup: subgroup): Promise<string> {
 
         const scheduleData = await pasteBinMain.fetch<ScheduleJson>();
-        const dayData = scheduleData[date.toString()];
-        if (!dayData) {
-            return "No data";
+        let dayData = this.filterGroups(scheduleData[date.toString()], subgroup);
+        // if (dayData.length == 0) {
+        //     dayData = null;
+        // }
+        // if (!dayData) {
+        //     return "No data";
+        // }
+        const AdditionalScheduleData = itIsMe ? await pasteBinAdditional.fetch<AdditionalScheduleJson>() : undefined;
+        const additionalData = AdditionalScheduleData ? AdditionalScheduleData[date.toString()] : undefined;
+
+        let out = "";
+
+        if (itIsMe) {
+            // const dayData = (await pasteBinAdditional.fetch<AdditionalScheduleJson>())[date.toString()];
+            // if (!dayData) {
+            //     return out;
+            // }
+            // printD({ dayData })
+            if (dayData) {
+                const time = this.getFirstTime(dayData, additionalData);
+
+                if (time) {
+                    out += "# НАЧАЛО\n"
+                    out += "> `" + time.shift("-1:30").toString() + "` просыпаемся (Волжский)\n";
+                    out += "> `" + time.shift("0:45").toString() + "` заканчиваем чо делали\n";
+                    out += "> `" + time.shift("0:15").toString() + "` выходим\n";
+                    out += "> `" + time.shift("0:30").toString() + "` начало занятий\n";
+                }
+            }
         }
-        let out = "### " + date.toString() + "\n" +
-            dayData.map(event => {
+
+        if (itIsMe) out += "# ЗАНЯТИЯ\n";
+        if (dayData) {
+            out += dayData.map(event => {
                 return "- **" + event.lesson + "**" + (event.subgroup === "both" ? " `обе подгруппы`" : " `подгруппа " + event.subgroup + "`") + "\n"
                     + "> `" + formatTime(event.time) + "` " + event.teacher.toUpperCase() + " __*" + event.type + "*__ **" + event.room + "**\n";
             }).join("");
+        } else {
+            out += "Нет данных\n";
+        }
+
+
 
         if (itIsMe) {
-            const dayData = (await pasteBinAdditional.fetch<AdditionalScheduleJson>())[date.toString()];
-            if (!dayData) {
-                return out;
+            // const dayData = (await pasteBinAdditional.fetch<AdditionalScheduleJson>())[date.toString()];
+            // if (!dayData) {
+            //     return out;
+            // }
+            if (additionalData) {
+                out += "# ДОПЫ\n"
+                // printD({ dayData })
+                out += additionalData.map(event => {
+                    return "- **" + event.name + "**\n"
+                        + "> `" + event.time + "` **" + event.place + "**\n";
+                }).join("");
             }
-            out += "## --- --- --- --- --- ---\n"
-            // printD({ dayData })
-            out += dayData.map(event => {
-                return "- **" + event.name + "**\n"
-                    + "> `" + event.time + "` **" + event.place + "**\n";
-            }).join("");
+
+            date.shift(1);
+            const tomorrowData = scheduleData[date.toString()];
+            if (tomorrowData) {
+
+                const tomorrowData = this.filterGroups(scheduleData[date.toString()], subgroup);
+                const tomorrowAdditionalData = AdditionalScheduleData ? AdditionalScheduleData[date.toString()] : undefined;
+
+                const time = this.getFirstTime(tomorrowData, tomorrowAdditionalData);
+                // printD({ tomorrowData, tomorrowAdditionalData });
+
+                // printD({ "первое занятие завтра: ": time.toString() });
+
+                // printD({ time: time.toString() });
+                if (time) {
+                    out += "# БАИ\n"
+                    out += "> `" + time.shift("-10:00").toString() + "` готовимся\n";
+                    out += "> `" + time.shift("1:00").toString() + "` засыпаем\n";
+                }
+            }
         }
+
+        out += "### (" + date.toLongString() + ")\n";
 
         return out;
     }
 
-    async makeBtns(date: CustomDate): Promise<ComponentParams[][]> {
+    async makeBtns(date: CustomDate, selectedGroup: subgroup): Promise<ComponentParams[][]> {
 
         const leftBtn: ButtonParams = {
             type: 2,
@@ -205,6 +315,23 @@ class ScheduleResponder {
             disabled: false,
             emoji: "<:next:1196070255836012544>",
             label: undefined,
+        };
+
+        function group(): StringSelectParams {
+
+            const groupString = selectedGroup === 1 ? "первая подгруппа" : selectedGroup === 2 ? "вторая подгруппа" : "все подгруппы";
+
+            return {
+                type: 3,
+                customId: "schedule_group",
+                disabled: false,
+                placeholder: groupString,
+                options: [
+                    { label: "первая подгруппа", value: "1" },
+                    { label: "вторая подгруппа", value: "2" },
+                    { label: "все подгруппы", value: "both" },
+                ]
+            } as StringSelectParams
         };
 
         const week = date.getWeek();
@@ -230,6 +357,7 @@ class ScheduleResponder {
             [daysButtons[0], daysButtons[1], daysButtons[2]],
             [daysButtons[3], daysButtons[4], daysButtons[5]],
             [leftBtn, daysButtons[6], rightBtn],
+            [group()]
         ];
     }
 }
@@ -238,6 +366,7 @@ type ScheduleMessageData = {
     monday: string;
     selectedDay: string;
     messageId: string;
+    selectedGroup: subgroup;
 }
 
 class ScheduleMessagesDbHandler {
@@ -252,6 +381,8 @@ class ScheduleMessagesDbHandler {
             printE(`GptDb: cannot load data for ${messageId}`);
             return null;
         }
+
+        data.selectedGroup = data.selectedGroup || "both";
 
         return data;
     }
@@ -277,92 +408,5 @@ class ScheduleMessagesDbHandler {
     }
 }
 
-class CustomDate {
-    private date: Date;
 
-    constructor(date: Date) {
-        this.date = date;
-    }
-
-    shift(delta: number): void {
-        const currentDate = this.date.getDate();
-        this.date.setDate(currentDate + delta);
-    }
-
-    getDate(): number {
-        return this.date.getDate();
-    }
-
-    getDay(): number {
-        const day = this.date.getDay();
-        return day === 0 ? 7 : day;
-    }
-
-    getFullYear(): number {
-        return this.date.getFullYear();
-    }
-
-    getMonth(): number {
-        return this.date.getMonth() + 1;
-    }
-
-    toString(): string {
-        const day = this.date.getUTCDate().toString().padStart(2, '0');
-        const month = (this.date.getUTCMonth() + 1).toString().padStart(2, '0');
-        const year = this.date.getUTCFullYear().toString();
-        return `${day}-${month}-${year}`;
-    }
-
-
-    static today(): CustomDate {
-        const now = new Date();
-        now.setUTCHours(0, 0, 0, 0);
-        return new CustomDate(now);
-    }
-
-
-    static fromString(dateString: string): CustomDate {
-        const [day, month, year] = dateString.split('-').map(Number);
-        const date = new Date(Date.UTC(year, month - 1, day));
-        return new CustomDate(date);
-    }
-
-
-    private getMonday(): CustomDate {
-        const dayOfWeek = this.date.getDay();
-        const diff = this.date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        const monday = new Date(this.date);
-        monday.setDate(diff);
-        return new CustomDate(monday);
-    }
-
-    getWeek(): CustomDate[] {
-        const week: CustomDate[] = [];
-        let currentDay = this.getMonday();
-
-        for (let i = 0; i < 7; i++) {
-            week.push(new CustomDate(new Date(currentDay.date)));
-            currentDay.shift(1);
-        }
-
-        return week;
-    }
-
-    getWeekDayName(full: boolean = false): string {
-        const daysOfWeek = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
-        const daysOfWeekFull = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
-
-        if (full) {
-            return daysOfWeekFull[this.date.getDay()];
-        } else {
-            return daysOfWeek[this.date.getDay()];
-        }
-    }
-
-    setDayOfWeek(targetDay: number): void {
-        const currentDay = this.getDay(); // текущий день недели (1-7)
-        const delta = targetDay - currentDay; // разница между текущим и целевым днём
-        this.shift(delta); // сдвигаем дату на эту разницу
-    }
-}
 
