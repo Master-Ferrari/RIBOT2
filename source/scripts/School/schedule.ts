@@ -263,20 +263,20 @@ class ScheduleResponder {
             //     return out;
             // }
             if (additionalData) {
-                out += "# ДОПЫ\n"
+                out += "# ДОПЫ\n" 
                 // printD({ dayData })
                 out += additionalData.map(event => {
                     return "- **" + event.name + "**\n"
                         + "> `" + event.time + "` **" + event.place + "**\n";
                 }).join("");
             }
-
-            date.shift(1);
-            const tomorrowData = scheduleData[date.toString()];
+            const tomorrowDate = CustomDate.fromString(date.toString());
+            tomorrowDate.shift(1);
+            const tomorrowData = scheduleData[tomorrowDate.toString()];
             if (tomorrowData) {
 
-                const tomorrowData = this.filterGroups(scheduleData[date.toString()], subgroup);
-                const tomorrowAdditionalData = AdditionalScheduleData ? AdditionalScheduleData[date.toString()] : undefined;
+                const tomorrowData = this.filterGroups(scheduleData[tomorrowDate.toString()], subgroup);
+                const tomorrowAdditionalData = AdditionalScheduleData ? AdditionalScheduleData[tomorrowDate.toString()] : undefined;
 
                 const time = this.getFirstTime(tomorrowData, tomorrowAdditionalData);
                 // printD({ tomorrowData, tomorrowAdditionalData });
@@ -336,7 +336,7 @@ class ScheduleResponder {
 
         const week = date.getWeek();
         // let dayIterator: CustomDate = week[0];
-        printD({ "AAA": date.toString() })
+        // printD({ "AAA": date.toString() })
 
         const daysButtons = week.map(day => {
 
