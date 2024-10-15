@@ -18,7 +18,7 @@ export const script = new ScriptBuilder({
             .addStringOption(option => option.setName('text6').setDescription('text6').setRequired(false))
             .addStringOption(option => option.setName('text7').setDescription('text7').setRequired(false))
             .addStringOption(option => option.setName('text8').setDescription('text8').setRequired(false))
-            .addStringOption(option => option.setName('text9').setDescription('text9').setRequired(false))
+            .addStringOption(option => option.setName('text9').setDescription('text9').setRequired(false)) 
         ,
         onSlash: async (interaction) => {
 
